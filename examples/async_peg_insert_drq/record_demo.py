@@ -29,6 +29,7 @@ if __name__ == "__main__":
     env = ChunkingWrapper(env, obs_horizon=1, act_exec_horizon=None)
 
     obs, _ = env.reset()
+    #obs = env.reset() #Changed to this to for potential older Gym version.
 
     transitions = []
     success_count = 0
