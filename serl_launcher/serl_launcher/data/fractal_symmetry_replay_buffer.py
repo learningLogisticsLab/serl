@@ -1,12 +1,7 @@
-import copy
-from typing import Iterable, Optional, Tuple
-
 import gym
 import numpy as np
-from serl_launcher.data.dataset import DatasetDict, _sample
+from serl_launcher.data.dataset import DatasetDict
 from serl_launcher.data.replay_buffer import ReplayBuffer
-from flax.core import frozen_dict
-from gym.spaces import Box
 
 class FractalSymmetryReplayBuffer(ReplayBuffer):
     def __init__(
@@ -20,10 +15,10 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         workspace_width: int,
 
         #Potentially temporary variables
-        depth: int = 1,
-        dendrites: int = None, 
-        timesplit_freq: int = None,
-        branch_count_rate_of_change: int = None,
+        depth: int,
+        dendrites: int, 
+        timesplit_freq: int,
+        branch_count_rate_of_change: int,
     ):
 
         self.split_method=split_method # Determines method for when to change transformation number
@@ -31,8 +26,9 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         self.workspace_width = workspace_width # Total 1D distance for transform calculations
 
         # Potentially temporary variables
+        self.transition_num = 0
         self.current_branch_count = 1 # Current number of branches
-        self.current_depth = 1 # Current depth
+        self.current_depth = 0 # Current depth
         self.depth=depth # Total number of layers
         self.dendrites=dendrites # For fractal only
         self.timesplit_freq=timesplit_freq # For time-based only
@@ -56,23 +52,22 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         #       grid-based will inherently evenly space lowest transforms, but fractal symmetry will be restricted to 9 dendrites (original plus 8) in order to conform
 
         super().__init__(
-            self,
             observation_space=observation_space,
             action_space=action_space,
-            capacity=capacity
+            capacity=capacity,
         )
 
     # REQUIRES TESTING
     def transform(self, data_dict: DatasetDict, translation: np.array):
         #   return data_dict with positional arguments += translation
-        data_dict["observations"]["state"] += translation
-        data_dict["next_observations"]["state"] += translation
+        data_dict["observations"] += translation
+        data_dict["next_observations"] += translation
     
     # REQUIRES TESTING
     def fractal_branch(self, data_dict: DatasetDict):
         # return a new number of branches = dendrites ^ depth
-        self.depth += 1
-        return self.dendrites ** (self.depth - 1)
+        self.current_depth += 1
+        return self.dendrites ** (self.current_depth)
     
     # REQUIRES TESTING
     def constant_branch(self, data_dict: DatasetDict):
@@ -84,6 +79,13 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         # return a new number of branches = branches_count + n
         return self.current_branch_count + self.branch_count_rate_of_change
     
+    # FOR TESTING ONLY
+    def test_split(self, data_dict: DatasetDict):
+        split = False
+        if self.transition_num % 2:
+            split = True
+        return split
+            
     # UNFINISHED
     def time_split(self, data_dict: DatasetDict):
         # return True when a set time has passed
@@ -120,6 +122,8 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 split = self.height_split
             case "velocity":
                 split = self.velocity_split
+            case "test":
+                split = self.test_split
             case _:
                 raise ValueError("incorrect value passed to split_method")
             
@@ -134,26 +138,27 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             case _:
                 raise ValueError("incorrect value passed to branch_method")
         
+        self.transition_num += 1
         # Update number of branches if needed
         if split(data_dict):
             self.current_branch_count = branch(data_dict)
         
         #---------------------TEMPORARY SECTION TO BE IMPROVED------------------------#
         # Save positions
-        rx = data_dict["observations"]["state"][0]
+        rx = data_dict["observations"][0]
         # ry = data_dict["observations"]["state"][1]
-        bx = data_dict["observations"]["state"][7]
+        bx = data_dict["observations"][7]
         # by = data_dict["observations"]["state"][8]
 
-        rx2 = data_dict["next_observations"]["state"][0]
+        rx2 = data_dict["next_observations"][0]
         # ry2 = data_dict["next_observations"]["state"][1]
-        bx2 = data_dict["next_observations"]["state"][7]
+        bx2 = data_dict["next_observations"][7]
         # by2 = data_dict["next_observations"]["state"][8]
 
         # OR set to extreme for iterations
         x = self.workspace_width / 2
-        data_dict["observations"]["state"] -= np.array([x, 0, 0, 0, 0, 0, 0, x, 0, 0])
-        data_dict["next_observations"]["state"] -= np.array([x, 0, 0, 0, 0, 0, 0, x, 0, 0])
+        data_dict["observations"] -= np.array([x, 0, 0, 0, 0, 0, 0, x, 0, 0])
+        data_dict["next_observations"] -= np.array([x, 0, 0, 0, 0, 0, 0, x, 0, 0])
         #-----------------------------------------------------------------------------#
 
         from_left = []
@@ -161,22 +166,22 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
 
         # Initial insert of most-extreme branch
         dx = self.workspace_width / (self.current_branch_count * 2)
-        super().insert(self.transform(data_dict, np.array([dx, 0, 0, 0, 0, 0, 0, dx, 0, 0])))
+        self.transform(data_dict, np.array([dx, 0, 0, 0, 0, 0, 0, dx, 0, 0]))
+        super().insert(data_dict)
         dx = dx * 2
 
-        from_left.append(data_dict["observations"]["state"][0] - self.workspace_width)
-        from_center.append(data_dict["observations"]["state"][0] - rx)
+        from_left.append(data_dict["observations"][0] - self.workspace_width / 2)
+        from_center.append(data_dict["observations"][0] - rx)
 
         # Insert of rest of branches
         for t in range(0, self.current_branch_count - 1):
-            super().insert(self.transform(
-                data_dict, 
-                np.array([dx, 0, 0, 0, 0, 0, 0, dx, 0, 0])
-            ))
-            from_left.append(data_dict["observations"]["state"][0] - self.workspace_width)
-            from_center.append(data_dict["observations"]["state"][0] - rx)
+            self.transform(data_dict, np.array([dx, 0, 0, 0, 0, 0, 0, dx, 0, 0]))
+            super().insert(data_dict)
+            from_left.append(data_dict["observations"][0] - self.workspace_width / 2)
+            from_center.append(data_dict["observations"][0] - rx)
         
-        print(self.workspace_width)
-        print(from_left)
-        print(from_center)
-        
+        print("\ntransition:\t", self.transition_num,"\ndepth:\t\t", self.current_depth, sep="\t")
+        print("workspace width:", self.workspace_width, sep="\t")
+        print("transforms from '0':", np.round(from_left, 2), sep="\t")
+        print("transforms from center:", np.round(from_center, 2), "\n", sep="\t")
+        return
