@@ -49,7 +49,7 @@ flags.DEFINE_integer("log_period", 10, "Logging period.")
 flags.DEFINE_integer("eval_period", 2000, "Evaluation period.")
 flags.DEFINE_integer("eval_n_trajs", 5, "Number of trajectories for evaluation.")
 
-# flag to indicate if this is a leaner or a actor
+# flag to indicate if this is a learner or a actor
 flags.DEFINE_boolean("learner", False, "Is this a learner or a trainer.")
 flags.DEFINE_boolean("actor", False, "Is this a learner or a trainer.")
 flags.DEFINE_boolean("render", False, "Render the environment.")
