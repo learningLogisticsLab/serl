@@ -9,9 +9,9 @@ import franka_sim
 FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("replay_buffer_capacity", 1000000, "Replay buffer capacity.")
-flags.DEFINE_string("branch_method", "test", "placeholder")
+flags.DEFINE_string("branch_method", "constant", "placeholder")
 flags.DEFINE_string("split_method", "test", "placeholder")
-flags.DEFINE_integer("workspace_width", 50, "workspace width in centimeters")
+flags.DEFINE_float("workspace_width", 1, "workspace width in centimeters")
 flags.DEFINE_integer("depth", 4, "Total layers of depth")
 flags.DEFINE_integer("dendrites", 3, "Dendrites for fractal branching") # Remember to set default to None
 flags.DEFINE_integer("timesplit_freq", None, "Frequency of splits according to time")

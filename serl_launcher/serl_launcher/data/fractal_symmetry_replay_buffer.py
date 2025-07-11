@@ -63,10 +63,11 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         
     # FOR TESTING ONLY
     def test_branch(self):
-        self.current_branch_count = np.random.randint(2500)
-        while(not self.current_branch_count % 2):
-            self.current_branch_count = np.random.randint(2500)
-        return self.current_branch_count
+        # self.current_branch_count = np.random.randint(2500)
+        # while(not self.current_branch_count % 2):
+        #     self.current_branch_count = np.random.randint(2500)
+        # return self.current_branch_count
+        return 81
     
     def fractal_branch(self):
         # return a new number of branches = dendrites ^ depth
@@ -145,31 +146,14 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         if split(data_dict):
             self.current_branch_count = branch()
         
-        #---------------------TEMPORARY SECTION TO BE IMPROVED------------------------#
-        # Save positions
-        # rx = data_dict["observations"][0]
-        # ry = data_dict["observations"]["state"][1]
-        # bx = data_dict["observations"][7]
-        # by = data_dict["observations"]["state"][8]
-
-        # rx2 = data_dict["next_observations"][0]
-        # ry2 = data_dict["next_observations"]["state"][1]
-        # bx2 = data_dict["next_observations"][7]
-        # by2 = data_dict["next_observations"]["state"][8]
-
-        # OR set to extreme for iterations
-        x = -self.workspace_width / 2
+        # Initial transform of first branch
+        dx = self.workspace_width/self.current_branch_count
+        x = (-self.workspace_width + dx)/2
         self.transform(data_dict, np.array([x, 0, 0, 0, 0, 0, 0, x, 0, 0]))
-        #-----------------------------------------------------------------------------#
 
-        # Initial insert of most-extreme branch
-        dx = self.workspace_width / (self.current_branch_count * 2)
-        self.transform(data_dict, np.array([dx, 0, 0, 0, 0, 0, 0, dx, 0, 0]))
-        super().insert(data_dict)
-        dx = dx * 2
-
-        # Insert of rest of branches
-        for t in range(0, self.current_branch_count - 1):
-            self.transform(data_dict, np.array([dx, 0, 0, 0, 0, 0, 0, dx, 0, 0]))
+        # Insert of transformed branches
+        for t in range(0, self.current_branch_count):
             super().insert(data_dict)
+            self.transform(data_dict, np.array([dx, 0, 0, 0, 0, 0, 0, dx, 0, 0]))
+            
             
