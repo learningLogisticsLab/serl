@@ -5,13 +5,14 @@ from serl_launcher.data.dataset import DatasetDict
 from serl_launcher.data.fractal_symmetry_replay_buffer import FractalSymmetryReplayBuffer
 from absl import app, flags
 import franka_sim
+# import pandas as pd
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_integer("replay_buffer_capacity", 1000000, "Replay buffer capacity.")
-flags.DEFINE_string("branch_method", "constant", "placeholder")
+flags.DEFINE_integer("replay_buffer_capacity", 10000000, "Replay buffer capacity.")
+flags.DEFINE_string("branch_method", "test", "placeholder")
 flags.DEFINE_string("split_method", "test", "placeholder")
-flags.DEFINE_float("workspace_width", 1, "workspace width in centimeters")
+flags.DEFINE_float("workspace_width", 0.5, "workspace width in centimeters")
 flags.DEFINE_integer("depth", 4, "Total layers of depth")
 flags.DEFINE_integer("dendrites", 3, "Dendrites for fractal branching") # Remember to set default to None
 flags.DEFINE_integer("timesplit_freq", None, "Frequency of splits according to time")
@@ -61,7 +62,7 @@ def main(_):
 
     del result, expected
     
-    print("\033[32mTEST PASSED \033[0m transform() tests passed")
+    print("\n\033[32mTEST PASSED \033[0m transform() tests passed")
     # branch() tests
 
     ## fractal
@@ -97,43 +98,61 @@ def main(_):
     print("\033[32mTEST PASSED \033[0m _split() tests passed")
 
     # insert() tests
+
+    # important_indices = np.array([0, 7])
+
+    # num_branches = 5000
+    # workspace_options = 20
+
+    # data = dict(
+    #     workspace_width = np.empty(shape=(num_branches//2 * workspace_options), dtype=np.float32),
+    #     num_branches = np.empty(shape=(num_branches//2 * workspace_options), dtype=int),
+    #     density = np.empty(shape=(num_branches//2 * workspace_options), dtype=np.float32)
+    # )
+
+    # for w in range(0, workspace_options):
+        # total_success = 0.0
+        # for i in range(1,num_branches, 2):
+        #     finished = False
+        #     buffer.current_branch_count = i
+        #     data_dict["observations"][important_indices] = 0
+    #         start = data_dict["observations"][important_indices[0]] - FLAGS.workspace_width / 2
+    #         buffer.insert(data_dict)
+    #         for idx in range(buffer.current_branch_count):
+    #             expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * buffer.current_branch_count), 3)
+    #             result = round(buffer.dataset_dict["observations"][buffer._insert_index - buffer.current_branch_count + idx][important_indices[0]] - start, 3)
+    #             # assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected {expected} but got {result})"
+    #             if result != expected:
+    #                 # print(f"At ww = {FLAGS.workspace_width}, maximum transforms = {i - 2}")
+    #                 # print(f"{i} failed at {idx}")
+    #                 finished = True
+
+    #                 break
+    #         if not finished:
+    #             print(f"SUCCESS at {i} branches")
+    #             total_success += 1
+    #         data["workspace_width"][i//2 + (num_branches//2) * w] = 0.05 * (w + 1)
+    #         data["num_branches"][i//2 + (num_branches//2) * w] = i
+    #         data["density"][i//2 + (num_branches//2) * w] = total_success/(i//2 + 1)
+
+    #     FLAGS.workspace_width = FLAGS.workspace_width + 0.05
+    #     buffer.workspace_width = FLAGS.workspace_width
+    # del i, idx, result, expected
+
+    # df = pd.DataFrame(data)
+    # df.to_excel('output.xlsx', index=False)
+
     data_dict["observations"][0] = 0
     start = data_dict["observations"][0] - FLAGS.workspace_width / 2
 
-    for i in range(0,10):
-        buffer.insert(data_dict)
-        for idx in range(buffer.current_branch_count):
-            expected = FLAGS.workspace_width * (2 * idx + 1)/(2 * buffer.current_branch_count)
-            result = buffer.dataset_dict["observations"][idx][0] - start
-            assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected {expected} but got {result})"
-            print(f"{result} is correct!!!")
-        buffer._insert_index = 0
-
-    del i, idx, result, expected
+    
+    buffer.insert(data_dict)
+    for idx in range(buffer.current_branch_count):
+        expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * buffer.current_branch_count), 3)
+        result = round(buffer.dataset_dict["observations"][idx][0] - start, 3)
+        assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected {expected} but got {result})"
 
     print("\033[32mTEST PASSED \033[0m insert() tests passed")
-
-    # for idx in range(8):
-    #     obs = np.array([50, 0, 8-idx, 0, 0, 0, 0, 0, 0, 0], dtype=np.float32)
-    #     next_obs = obs - np.array([50, 0, 1, 0, 0, 0, 0, 0, 0, 0], dtype=np.float32)
-    #     rewards = np.float32(0)
-    #     # truncateds = False
-    #     masks=True
-    #     dones = False
-    #     if idx == 7:
-    #         rewards += 1
-    #         masks = False
-    #         dones = True
-    #     transition = dict(
-    #         observations=obs, 
-    #         next_observations=next_obs,
-    #         actions = actions,
-    #         rewards=rewards,
-    #         # truncateds=truncateds,
-    #         masks=masks,
-    #         dones=dones,
-    #         )
-    #     buffer.insert(transition)
         
     print("\nfinished!\n")
 
