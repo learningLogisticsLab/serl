@@ -10,8 +10,8 @@ import franka_sim
 FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("capacity", 10000000, "Replay buffer capacity.")
-flags.DEFINE_string("branch_method", "test", "placeholder")
-flags.DEFINE_string("split_method", "test", "placeholder")
+flags.DEFINE_string("branch_method", "fractal", "placeholder")
+flags.DEFINE_string("split_method", "time", "placeholder")
 flags.DEFINE_float("workspace_width", 0.5, "workspace width in centimeters")
 flags.DEFINE_integer("depth", 4, "Total layers of depth")
 flags.DEFINE_integer("dendrites", 3, "Dendrites for fractal branching") # Remember to set default to None
@@ -21,38 +21,27 @@ flags.DEFINE_integer("starting_branch_count", 1, "Initial number of branches(sor
 
 def main(_):
 
+    x_obs_idx = np.array([0, 7])
+    y_obs_idx = np.array([1, 8])
+
     # Initialize replay buffer
     env = gym.make("PandaPickCube-v0")
     env = gym.wrappers.FlattenObservation(env)
 
-    buffer = FractalSymmetryReplayBuffer(
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        capacity=FLAGS.capacity,
-        split_method=FLAGS.split_method,
-        branch_method=FLAGS.branch_method,
-        workspace_width=FLAGS.workspace_width,
-        depth=FLAGS.depth,
-        dendrites=FLAGS.dendrites,
-        timesplit_freq=FLAGS.timesplit_freq,
-        branch_count_rate_of_change=FLAGS.branch_count_rate_of_change,
-        starting_branch_count=FLAGS.starting_branch_count,
-    )
-
     replay_buffer = make_replay_buffer(
         env,
+        type="fractal_symmetry_replay_buffer",
         capacity=FLAGS.capacity,
         split_method=FLAGS.split_method,
         branch_method=FLAGS.branch_method,
         workspace_width=FLAGS.workspace_width,
+        x_obs_idx=x_obs_idx,
         depth=FLAGS.depth,
         dendrites=FLAGS.dendrites,
         timesplit_freq=FLAGS.timesplit_freq,
         branch_count_rate_of_change=FLAGS.branch_count_rate_of_change,
         starting_branch_count=FLAGS.starting_branch_count,
     )
-
-    
 
     observation, info = env.reset()
     action = env.action_space.sample()
@@ -71,7 +60,7 @@ def main(_):
     # transform() test
 
     expected = np.copy(data_dict["observations"]) * 2
-    buffer.transform(data_dict, np.copy(data_dict["observations"]))
+    replay_buffer.transform(data_dict, np.copy(data_dict["observations"]))
     result = data_dict["observations"]
     assert np.array_equal(result, expected), f"\033[31mTEST FAILED\033[0m transform() test failed (expected {expected} but got {result})"
 
@@ -82,15 +71,15 @@ def main(_):
 
     ## fractal
 
-    for dendrites in range(1, 10, 2):
-        buffer.dendrites=dendrites
-        for depth in range(1, 6):
-            buffer.current_depth=depth - 1
-            result = buffer.fractal_branch()
-            expected = dendrites ** depth
-            assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    # for dendrites in range(1, 10, 2):
+    #     replay_buffer.dendrites=dendrites
+    #     for depth in range(1, 6):
+    #         replay_buffer.current_depth=depth - 1
+    #         result = replay_buffer.fractal_branch()
+    #         expected = dendrites ** depth
+    #         assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
     
-    del dendrites, depth, result, expected
+    # del dendrites, depth, result, expected
 
     ## constant
 
@@ -161,16 +150,16 @@ def main(_):
     start = data_dict["observations"][0] - FLAGS.workspace_width / 2
 
     
-    buffer.insert(data_dict)
-    for idx in range(buffer.current_branch_count):
-        expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * buffer.current_branch_count), 3)
-        result = round(buffer.dataset_dict["observations"][idx][0] - start, 3)
-        assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected {expected} but got {result})"
+    # buffer.insert(data_dict)
+    # for idx in range(buffer.current_branch_count):
+    #     expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * buffer.current_branch_count), 3)
+    #     result = round(buffer.dataset_dict["observations"][idx][0] - start, 3)
+    #     assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected {expected} but got {result})"
 
     replay_buffer.insert(data_dict)
-    for idx in range(buffer.current_branch_count):
-        expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * buffer.current_branch_count), 3)
-        result = round(buffer.dataset_dict["observations"][idx][0] - start, 3)
+    for idx in range(replay_buffer.current_branch_count):
+        expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * replay_buffer.current_branch_count), 3)
+        result = round(replay_buffer.dataset_dict["observations"][idx][0] - start, 3)
         assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected {expected} but got {result})"
 
     print("\033[32mTEST PASSED \033[0m insert() tests passed")

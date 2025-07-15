@@ -221,7 +221,7 @@ def make_replay_buffer(
     - env: gym or gymasium environment
     - capacity: capacity of the replay buffer
     - rlds_logger_path: path to save RLDS logs
-    - type: support only for "replay_buffer" and "memory_efficient_replay_buffer"
+    - type: support only for "replay_buffer", "memory_efficient_replay_buffer", and "fractal_symmetry_replay_buffer"
     - image_keys: list of image keys, used only "memory_efficient_replay_buffer"
     - preload_rlds_path: path to preloaded RLDS trajectories
     - preload_data_transform: data transformation function for preloaded RLDS data
