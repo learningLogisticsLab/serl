@@ -288,7 +288,11 @@ def main(_):
             env,
             capacity=FLAGS.replay_buffer_capacity,
             rlds_logger_path=FLAGS.log_rlds_path,
-            type="replay_buffer",
+            type="fractal_symmetry_replay_buffer",
+            branch_method="test",
+            split_method="test",
+            workspace_width=0.5,
+            x_obs_idx=np.array([0,7]),
             preload_rlds_path=FLAGS.preload_rlds_path,
         )
         replay_iterator = replay_buffer.get_iterator(
