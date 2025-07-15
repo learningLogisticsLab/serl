@@ -12,7 +12,7 @@
             // Command-line arguments matching run_learner.sh
             "args": [
                 "--learner",                           // REQUIRED: Indicates this is a learner instance
-                "--env", "PandaPickCube-v0",          // Environment to use
+                "--env", "PandaReachCube-v0",          // Environment to use
                 "--exp_name=serl_dev_sim_test",       // Experiment name for wandb logging
                 "--seed", "0",                        // Random seed for reproducibility
                 "--max_steps", "1000000",             // Maximum training steps
@@ -47,7 +47,7 @@
             "args": [
                 "--actor",                            // REQUIRED: Indicates this is an actor instance
                 "--render",                           // Enable rendering the environment
-                "--env", "PandaPickCube-v0",          // Environment to use
+                "--env", "PandaReachCube-v0",          // Environment to use
                 "--exp_name=serl_dev_sim_test",       // Experiment name for wandb logging
                 "--seed", "0",                        // Random seed for reproducibility
                 "--random_steps", "1000",             // Number of random steps at beginning
