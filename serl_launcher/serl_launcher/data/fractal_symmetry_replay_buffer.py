@@ -16,9 +16,10 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
     ):
         self.current_branch_count=1
 
+        method_check = "split_method"
         match split_method:
             case "time":
-                assert "timesplit_freq" in kwargs.keys(), "\033[31mERROR \033[0mtimesplit_freq must be defined for split_method \"time\""
+                assert "timesplit_freq" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "depth")
                 self.timesplit_freq=kwargs["timesplit_freq"]
                 del kwargs["timesplit_freq"]
                 self.split = self.time_split
@@ -35,32 +36,33 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.split = self.test_split
             case _:
                 raise ValueError("incorrect value passed to split_method")
-            
+        
+        method_check = "branch_method"
         match branch_method:
             case "fractal":
-                assert "depth" in kwargs.keys(), "\033[31mERROR \033[0mdepth must be defined for branch_method \"fractal\""
+                assert "depth" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "depth")
                 self.depth=kwargs["depth"]
                 del kwargs["depth"]
 
-                assert "dendrites" in kwargs.keys(), "\033[31mERROR \033[0mdendrites must be defined for branch_method \"fractal\""
+                assert "dendrites" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "dendrites")
                 self.dendrites=kwargs["dendrites"]
                 del kwargs["dendrites"]
 
                 self.branch = self.fractal_branch
 
             case "linear":
-                assert "branch_count_rate_of_change" in kwargs.keys(), "\033[31mERROR \033[0mbranch_count_rate_of_change must be defined for branch_method \"fractal\""
+                assert "branch_count_rate_of_change" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "branch_count_rate_of_change")
                 self.branch_count_rate_of_change=kwargs["branch_count_rate_of_change"]
                 del kwargs["branch_count_rate_of_change"]
 
-                assert "starting_branch_count" in kwargs.keys(), "\033[31mERROR \033[0mstarting_branch_count must be defined for branch_method \"constant\""
+                assert "starting_branch_count" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "starting_branch_count")
                 self.current_branch_count = kwargs["starting_branch_count"]
                 del kwargs["starting_branch_count"]
 
                 self.branch = self.linear_branch
 
             case "constant":
-                assert "starting_branch_count" in kwargs.keys(), "\033[31mERROR \033[0mstarting_branch_count must be defined for branch_method \"constant\""
+                assert "starting_branch_count" in kwargs.keys(), self._handle_bad_args_("branch_method", branch_method, "starting_branch_count")
                 self.current_branch_count = kwargs["starting_branch_count"]
                 del kwargs["starting_branch_count"]
 
@@ -72,8 +74,8 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             case _:
                 raise ValueError("incorrect value passed to branch_method")
 
-        for i in kwargs.keys():
-            print(f"\033[33mWARNING \033[0m {i} argument not used")
+        for k in kwargs.keys():
+            print(f"\033[33mWARNING \033[0m argument \"{k}\" not used")
         
         
         
@@ -95,6 +97,10 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             action_space=action_space,
             capacity=capacity,
         )
+
+    def _handle_bad_args_(type: str, method: str, arg: str) :
+        return f"\033[31mERROR: \033[0m{arg} must be defined for {type} \"{method}\""
+    
 
     def transform(self, data_dict: DatasetDict, translation: np.array):
         #   return data_dict with positional arguments += translation
