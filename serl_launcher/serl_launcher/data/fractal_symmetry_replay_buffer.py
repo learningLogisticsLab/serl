@@ -12,16 +12,16 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         branch_method: str,
         split_method: str,
         workspace_width: int,
-        **kwargs: dict
+        kwargs: dict
     ):
         self.current_branch_count=1
 
         method_check = "split_method"
         match split_method:
             case "time":
-                assert "timesplit_freq" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "depth")
-                self.timesplit_freq=kwargs["timesplit_freq"]
-                del kwargs["timesplit_freq"]
+                # assert "timesplit_freq" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "depth")
+                # self.timesplit_freq=kwargs["timesplit_freq"]
+                # del kwargs["timesplit_freq"]
                 self.split = self.time_split
             case "rel_pos":
                 print("NOT IMPLEMENTED")
@@ -77,10 +77,11 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         for k in kwargs.keys():
             print(f"\033[33mWARNING \033[0m argument \"{k}\" not used")
         
-        
-        
+        self.x_obs_idx = kwargs["x_obs_idx"]
+        # self.y_obs_idx = kwargs["y_obs_idx"]
         self.workspace_width = workspace_width
-        self.current_depth = 0
+        self.current_depth = 1
+        self.counter = 1
         
         # TODO
         #   Add flags for variables passed to
@@ -102,10 +103,12 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         return f"\033[31mERROR: \033[0m{arg} must be defined for {type} \"{method}\""
     
 
-    def transform(self, data_dict: DatasetDict, translation: np.array):
+    def transform(self, data_dict: DatasetDict, transform: np.array):
         #   return data_dict with positional arguments += translation
-        data_dict["observations"] += translation
-        data_dict["next_observations"] += translation
+        assert data_dict["observations"].shape == transform.shape, "transform broke at observations"
+        assert data_dict["observations"].shape == transform.shape, "transform broke at next_observations"
+        data_dict["observations"] += transform
+        data_dict["next_observations"] += transform
         
     # FOR TESTING ONLY
     def test_branch(self):
@@ -117,8 +120,11 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
     
     def fractal_branch(self):
         # return a new number of branches = dendrites ^ depth
+        temp = self.dendrites ** self.current_depth
         self.current_depth += 1
-        return self.dendrites ** (self.current_depth)
+        if self.current_depth > self.depth:
+            return self.dendrites ** self.depth
+        return temp
     
     # REQUIRES TESTING
     def constant_branch(self):
@@ -134,10 +140,14 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
     def test_split(self, data_dict: DatasetDict):
         return True
             
-    # NOT IMPLEMENTED
+    # NOT IMPLEMENTED (HARDCODED)
     def time_split(self, data_dict: DatasetDict):
         # return True when a set time has passed
-        raise NotImplementedError
+        match self.counter % 12:
+            case 0:
+                return True
+            case _:
+                return False
     
     # NOT IMPLEMENTED
     def rel_pos_split(self, data_dict: DatasetDict):
@@ -167,10 +177,17 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         # Transform and insert branches
         dx = self.workspace_width/self.current_branch_count
         x = (-self.workspace_width + dx)/2
-        self.transform(data_dict, np.array([x, 0, 0, 0, 0, 0, 0, x, 0, 0]))
+        transform = np.zeros_like(data_dict["observations"])
+        transform[self.x_obs_idx] = x
+        self.transform(data_dict, transform)
+        transform[self.x_obs_idx] = dx
 
         for t in range(0, self.current_branch_count):
             super().insert(data_dict)
-            self.transform(data_dict, np.array([dx, 0, 0, 0, 0, 0, 0, dx, 0, 0]))
-            
-            
+            self.transform(data_dict, transform)
+        
+        self.counter += 1
+
+        if data_dict["dones"]:
+            self.counter = 1
+            self.current_depth = 1
