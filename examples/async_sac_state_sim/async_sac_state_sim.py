@@ -92,8 +92,8 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
     client.recv_network_callback(update_params)
 
     eval_env = gym.make(FLAGS.env)
-    if FLAGS.env == "PandaPickCube-v0":
-        eval_env = gym.wrappers.FlattenObservation(eval_env)
+    #if FLAGS.env == "PandaPickCube-v0":
+    eval_env = gym.wrappers.FlattenObservation(eval_env)
     eval_env = RecordEpisodeStatistics(eval_env)
 
     obs, _ = env.reset()
@@ -174,7 +174,7 @@ def learner(rng, agent: SACAgent, replay_buffer, replay_iterator):
     """
     # set up wandb and logging
     wandb_logger = make_wandb_logger(
-        project="serl_dev",
+        project="serl_reach",
         description=FLAGS.exp_name or FLAGS.env,
         debug=FLAGS.debug,
     )
@@ -266,8 +266,8 @@ def main(_):
     else:
         env = gym.make(FLAGS.env)
 
-    if FLAGS.env == "PandaPickCube-v0":
-        env = gym.wrappers.FlattenObservation(env)
+    #if FLAGS.env == "PandaPickCube-v0":
+    env = gym.wrappers.FlattenObservation(env)
 
     rng, sampling_rng = jax.random.split(rng)
     agent: SACAgent = make_sac_agent(
