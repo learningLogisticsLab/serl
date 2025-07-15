@@ -18,6 +18,7 @@ from serl_launcher.agents.continuous.vice import VICEAgent
 from serl_launcher.data.data_store import (
     MemoryEfficientReplayBufferDataStore,
     ReplayBufferDataStore,
+    FractalSymmetryReplayBufferDataStore,
 )
 
 ##############################################################################
@@ -206,6 +207,11 @@ def make_replay_buffer(
     image_keys: list = [],  # used only type=="memory_efficient_replay_buffer"
     preload_rlds_path: Optional[str] = None,
     preload_data_transform: Optional[callable] = None,
+    branch_method: str = None, # used only type=="fractal_symmetry_replay_buffer"
+    split_method : str = None, # used only type=="fractal_symmetry_replay_buffer"
+    workspace_width : float = None, # used only type=="fractal_symmetry_replay_buffer"
+    
+    **kwargs: dict # used only type=="fractal_symmetry_replay_buffer"
 ):
     """
     This is the high-level helper function to
@@ -253,6 +259,17 @@ def make_replay_buffer(
             capacity=capacity,
             rlds_logger=rlds_logger,
             image_keys=image_keys,
+        )
+    elif type == "fractal_symmetry_replay_buffer":
+        replay_buffer = FractalSymmetryReplayBufferDataStore(
+            env.observation_space,
+            env.action_space,
+            capacity=capacity,
+            branch_method=branch_method,
+            split_method=split_method,
+            workspace_width=workspace_width,
+            rlds_logger=rlds_logger,
+            kwargs=kwargs,
         )
     else:
         raise ValueError(f"Unsupported replay_buffer_type: {type}")
