@@ -17,6 +17,7 @@ flags.DEFINE_integer("depth", 4, "Total layers of depth")
 flags.DEFINE_integer("dendrites", 3, "Dendrites for fractal branching") # Remember to set default to None
 flags.DEFINE_integer("timesplit_freq", None, "Frequency of splits according to time")
 flags.DEFINE_integer("branch_count_rate_of_change", None, "Rate of change for linear branching")
+flags.DEFINE_integer("starting_branch_count", 1, "Initial number of branches(sort of, TBD)")
 
 def main(_):
 
@@ -31,12 +32,11 @@ def main(_):
         split_method=FLAGS.split_method,
         branch_method=FLAGS.branch_method,
         workspace_width=FLAGS.workspace_width,
-        kwargs={
-            "depth": FLAGS.depth,
-            "dendrites": FLAGS.dendrites,
-            "timesplit_freq": FLAGS.timesplit_freq,
-            "branch_count_rate_of_change": FLAGS.branch_count_rate_of_change,
-        }
+        depth=FLAGS.depth,
+        dendrites=FLAGS.dendrites,
+        timesplit_freq=FLAGS.timesplit_freq,
+        branch_count_rate_of_change=FLAGS.branch_count_rate_of_change,
+        starting_branch_count=FLAGS.starting_branch_count,
     )
 
     replay_buffer = make_replay_buffer(
@@ -45,12 +45,11 @@ def main(_):
         split_method=FLAGS.split_method,
         branch_method=FLAGS.branch_method,
         workspace_width=FLAGS.workspace_width,
-        kwargs={
-            "depth": FLAGS.depth,
-            "dendrites": FLAGS.dendrites,
-            "timesplit_freq": FLAGS.timesplit_freq,
-            "branch_count_rate_of_change": FLAGS.branch_count_rate_of_change,
-        }
+        depth=FLAGS.depth,
+        dendrites=FLAGS.dendrites,
+        timesplit_freq=FLAGS.timesplit_freq,
+        branch_count_rate_of_change=FLAGS.branch_count_rate_of_change,
+        starting_branch_count=FLAGS.starting_branch_count,
     )
 
     
@@ -163,6 +162,12 @@ def main(_):
 
     
     buffer.insert(data_dict)
+    for idx in range(buffer.current_branch_count):
+        expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * buffer.current_branch_count), 3)
+        result = round(buffer.dataset_dict["observations"][idx][0] - start, 3)
+        assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected {expected} but got {result})"
+
+    replay_buffer.insert(data_dict)
     for idx in range(buffer.current_branch_count):
         expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * buffer.current_branch_count), 3)
         result = round(buffer.dataset_dict["observations"][idx][0] - start, 3)
