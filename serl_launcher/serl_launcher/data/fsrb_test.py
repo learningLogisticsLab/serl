@@ -1,7 +1,7 @@
 import gym.wrappers
 import numpy as np
 import gym
-from serl_launcher.data.dataset import DatasetDict
+from serl_launcher.utils.launcher import make_replay_buffer
 from serl_launcher.data.fractal_symmetry_replay_buffer import FractalSymmetryReplayBuffer
 from absl import app, flags
 import franka_sim
@@ -9,7 +9,7 @@ import franka_sim
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_integer("replay_buffer_capacity", 10000000, "Replay buffer capacity.")
+flags.DEFINE_integer("capacity", 10000000, "Replay buffer capacity.")
 flags.DEFINE_string("branch_method", "test", "placeholder")
 flags.DEFINE_string("split_method", "test", "placeholder")
 flags.DEFINE_float("workspace_width", 0.5, "workspace width in centimeters")
@@ -23,21 +23,37 @@ def main(_):
     # Initialize replay buffer
     env = gym.make("PandaPickCube-v0")
     env = gym.wrappers.FlattenObservation(env)
-    observation_space=env.observation_space
-    action_space=env.action_space
 
     buffer = FractalSymmetryReplayBuffer(
-        observation_space=observation_space,
-        action_space=action_space,
-        capacity=FLAGS.replay_buffer_capacity,
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+        capacity=FLAGS.capacity,
         split_method=FLAGS.split_method,
         branch_method=FLAGS.branch_method,
         workspace_width=FLAGS.workspace_width,
-        depth=FLAGS.depth,
-        dendrites=FLAGS.dendrites,
-        timesplit_freq=FLAGS.timesplit_freq,
-        branch_count_rate_of_change=FLAGS.branch_count_rate_of_change,
+        kwargs={
+            "depth": FLAGS.depth,
+            "dendrites": FLAGS.dendrites,
+            "timesplit_freq": FLAGS.timesplit_freq,
+            "branch_count_rate_of_change": FLAGS.branch_count_rate_of_change,
+        }
     )
+
+    replay_buffer = make_replay_buffer(
+        env,
+        capacity=FLAGS.capacity,
+        split_method=FLAGS.split_method,
+        branch_method=FLAGS.branch_method,
+        workspace_width=FLAGS.workspace_width,
+        kwargs={
+            "depth": FLAGS.depth,
+            "dendrites": FLAGS.dendrites,
+            "timesplit_freq": FLAGS.timesplit_freq,
+            "branch_count_rate_of_change": FLAGS.branch_count_rate_of_change,
+        }
+    )
+
+    
 
     observation, info = env.reset()
     action = env.action_space.sample()
@@ -51,7 +67,7 @@ def main(_):
         dones=truncated or terminated,
     )
 
-    del env, observation, next_observation, action, reward, truncated, terminated, action_space, observation_space, info, _
+    del env, observation, next_observation, action, reward, truncated, terminated, info, _
 
     # transform() test
 
