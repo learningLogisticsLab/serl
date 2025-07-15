@@ -167,14 +167,14 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
 
 ##############################################################################
 
-
+ 
 def learner(rng, agent: SACAgent, replay_buffer, replay_iterator):
     """
     The learner loop, which runs when "--learner" is set to True.
     """
     # set up wandb and logging
     wandb_logger = make_wandb_logger(
-        project="serl_reach",
+        project=FLAGS.exp_name,
         description=FLAGS.exp_name or FLAGS.env,
         debug=FLAGS.debug,
     )
