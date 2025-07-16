@@ -49,7 +49,7 @@ flags.DEFINE_integer("log_period", 10, "Logging period.")
 flags.DEFINE_integer("eval_period", 2000, "Evaluation period.")
 flags.DEFINE_integer("eval_n_trajs", 5, "Number of trajectories for evaluation.")
 
-# flag to indicate if this is a leaner or a actor
+# flag to indicate if this is a learner or a actor
 flags.DEFINE_boolean("learner", False, "Is this a learner or a trainer.")
 flags.DEFINE_boolean("actor", False, "Is this a learner or a trainer.")
 flags.DEFINE_boolean("render", False, "Render the environment.")
@@ -288,7 +288,11 @@ def main(_):
             env,
             capacity=FLAGS.replay_buffer_capacity,
             rlds_logger_path=FLAGS.log_rlds_path,
-            type="replay_buffer",
+            type="fractal_symmetry_replay_buffer",
+            branch_method="test",
+            split_method="test",
+            workspace_width=0.5,
+            x_obs_idx=np.array([0,7]),
             preload_rlds_path=FLAGS.preload_rlds_path,
         )
         replay_iterator = replay_buffer.get_iterator(
