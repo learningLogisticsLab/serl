@@ -45,7 +45,7 @@ class WandBLogger(object):
         self.config = wandb_config
         if self.config.unique_identifier == "":
             self.config.unique_identifier = datetime.datetime.now().strftime(
-                "%Y%m%d_%H%M%S"
+                "%m-%d-%Y-%H-%M-%S"
             )
 
         self.config.experiment_id = (

@@ -174,5 +174,5 @@ checkpoint
 wandb/
 
 # VS Code settings
-.vscode/
 *.code-workspace
+

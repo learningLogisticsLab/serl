@@ -210,7 +210,7 @@ class Dataset(object):
                 return (
                     rng,
                     indx.max(),
-                    jax.tree_map(lambda d: jnp.take(d, indx, axis=0), src),
+                    jax.tree.map(lambda d: jnp.take(d, indx, axis=0), src),
                 )
 
             self._sample_jax = _sample_jax

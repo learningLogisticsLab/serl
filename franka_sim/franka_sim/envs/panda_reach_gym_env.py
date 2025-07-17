@@ -266,7 +266,7 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
 
         # Distance-based reward
         r_close = np.exp(-20 * dist)
-        print(r_close)
+        r_close = np.clip(r_close, 0.0, 1.0)
     
         return r_close
 
