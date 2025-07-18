@@ -293,6 +293,7 @@ def main(_):
             split_method="test",
             workspace_width=0.5,
             x_obs_idx=np.array([0,7]),
+            y_obs_idx=np.array([1,8]),
             preload_rlds_path=FLAGS.preload_rlds_path,
         )
         replay_iterator = replay_buffer.get_iterator(
