@@ -17,7 +17,7 @@ python async_sac_state_sim.py "$@" \
     --actor \
     --render \
     --env $ENV_NAME \
-    --exp_name=serl-reach \
+    --exp_name=serl-reach-testing \
     --seed 0 \
     --random_steps 1000 \
     --max_steps 100000 \

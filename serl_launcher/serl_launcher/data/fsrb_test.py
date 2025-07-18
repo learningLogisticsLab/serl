@@ -25,7 +25,7 @@ def main(_):
     y_obs_idx = np.array([1, 8])
 
     # Initialize replay buffer
-    env = gym.make("PandaPickCube-v0")
+    env = gym.make("PandaReachCube-v0")
     env = gym.wrappers.FlattenObservation(env)
 
     replay_buffer = make_replay_buffer(

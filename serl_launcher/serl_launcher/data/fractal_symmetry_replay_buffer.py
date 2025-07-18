@@ -83,7 +83,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         self.workspace_width = workspace_width
         self.current_depth = 1
         self.counter = 1
-        self.branch_index = None
+        self.branch_index = [workspace_width/2]
         
         # TODO
         #   Add flags for variables passed to
@@ -118,7 +118,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         # while(not self.current_branch_count % 2):
         #     self.current_branch_count = np.random.randint(2500)
         # return self.current_branch_count
-        return 3
+        return 1
     
     def fractal_branch(self):
         # return a new number of branches = dendrites ^ depth

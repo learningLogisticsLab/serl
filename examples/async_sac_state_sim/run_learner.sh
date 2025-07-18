@@ -17,7 +17,7 @@ fi
 python async_sac_state_sim.py "$@" \
     --learner \
     --env $ENV_NAME \
-    --exp_name=serl-reach \
+    --exp_name=serl-reach-testing \
     --seed 0 \
     --max_steps 100000 \
     --training_starts 1000 \
