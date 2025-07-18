@@ -10,8 +10,8 @@ import franka_sim
 FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("capacity", 10000000, "Replay buffer capacity.")
-flags.DEFINE_string("branch_method", "fractal", "placeholder")
-flags.DEFINE_string("split_method", "time", "placeholder")
+flags.DEFINE_string("branch_method", "test", "placeholder")
+flags.DEFINE_string("split_method", "test", "placeholder")
 flags.DEFINE_float("workspace_width", 0.5, "workspace width in centimeters")
 flags.DEFINE_integer("depth", 4, "Total layers of depth")
 flags.DEFINE_integer("dendrites", 3, "Dendrites for fractal branching") # Remember to set default to None
@@ -36,6 +36,7 @@ def main(_):
         branch_method=FLAGS.branch_method,
         workspace_width=FLAGS.workspace_width,
         x_obs_idx=x_obs_idx,
+        y_obs_idx= y_obs_idx,
         depth=FLAGS.depth,
         dendrites=FLAGS.dendrites,
         timesplit_freq=FLAGS.timesplit_freq,
@@ -147,6 +148,7 @@ def main(_):
     # df.to_excel('output.xlsx', index=False)
 
     data_dict["observations"][0] = 0
+    data_dict["observations"][1] = 0
     start = data_dict["observations"][0] - FLAGS.workspace_width / 2
 
     

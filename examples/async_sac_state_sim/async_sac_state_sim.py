@@ -279,7 +279,7 @@ def main(_):
     # replicate agent across devices
     # need the jnp.array to avoid a bug where device_put doesn't recognize primitives
     agent: SACAgent = jax.device_put(
-        jax.tree_map(jnp.array, agent), sharding.replicate()
+        jax.tree.map(jnp.array, agent), sharding.replicate()
     )
 
     if FLAGS.learner:
@@ -293,6 +293,7 @@ def main(_):
             split_method="test",
             workspace_width=0.5,
             x_obs_idx=np.array([0,7]),
+            y_obs_idx=np.array([1,8]),
             preload_rlds_path=FLAGS.preload_rlds_path,
         )
         replay_iterator = replay_buffer.get_iterator(
