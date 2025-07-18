@@ -52,3 +52,5 @@ def main(_):
 
     batch = next(replay_iterator)
 
+if __name__ == "__main__":
+    app.run(main)
