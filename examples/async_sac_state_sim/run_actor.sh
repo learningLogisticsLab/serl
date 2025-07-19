@@ -15,7 +15,6 @@ if [ ! -d "$CHECKPOINT_DIR" ]; then
 fi
 python async_sac_state_sim.py "$@" \
     --actor \
-    --render \
     --env $ENV_NAME \
     --exp_name=serl-reach-testing \
     --seed 0 \
@@ -28,4 +27,5 @@ python async_sac_state_sim.py "$@" \
     --save_model True \
     --checkpoint_period 10000 \
     --checkpoint_path "$CHECKPOINT_DIR" \
+    #--render \
     #--debug # wandb is disabled when debug

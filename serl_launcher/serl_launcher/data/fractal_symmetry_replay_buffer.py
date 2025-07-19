@@ -4,6 +4,8 @@ from serl_launcher.data.dataset import DatasetDict
 from serl_launcher.data.replay_buffer import ReplayBuffer
 import copy
 
+import time
+
 class FractalSymmetryReplayBuffer(ReplayBuffer):
     def __init__(
         self,
@@ -118,7 +120,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         # while(not self.current_branch_count % 2):
         #     self.current_branch_count = np.random.randint(2500)
         # return self.current_branch_count
-        return 1
+        return 9
     
     def fractal_branch(self):
         # return a new number of branches = dendrites ^ depth
@@ -170,8 +172,10 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         # return True every transition
         return True
     
-    def insert(self, data_dict: DatasetDict):
+    def insert(self, data_dict_not: DatasetDict):
         
+        data_dict = copy.deepcopy(data_dict_not)
+        # start_time = time.time()
         # Update number of branches if needed
         if self.split(data_dict):
             temp = self.current_branch_count
@@ -181,7 +185,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 constant = self.workspace_width/(2 * self.current_branch_count)
                 for i in range(0, self.current_branch_count):
                     self.branch_index[i] = (2 * i + 1) * constant
-        
         # rb_origin = [data_dict["observations"][self.x_obs_idx[0]], data_dict["observations"][self.y_obs_idx[0]]]
         # block_origin = [data_dict["observations"][self.x_obs_idx[1]], data_dict["observations"][self.y_obs_idx[1]]]
         # rb_next_origin = [data_dict["next_observations"][self.x_obs_idx[0]], data_dict["next_observations"][self.y_obs_idx[0]]]
@@ -224,13 +227,13 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 # assert data_dict["dones"] == new_data_dict["dones"]
                 # assert data_dict["masks"] == new_data_dict["masks"]
                 # for i in range(0, data_dict["observations"].size):
-                #     if i in self.x_obs_idx or i in self.y_obs_idx:
-                #         continue
-                #     assert data_dict["observations"][i] == new_data_dict["observations"][i]
-                #     assert data_dict["next_observations"][i] == new_data_dict["next_observations"][i]
+                    # if i in self.x_obs_idx or i in self.y_obs_idx:
+                        # continue
+                # assert data_dict["observations"][i] == new_data_dict["observations"][i]
+                # assert data_dict["next_observations"][i] == new_data_dict["next_observations"][i]
 
                 super().insert(new_data_dict)
-        
+
         self.counter += 1
 
         # print(f"original x,y of hand before transition: {rb_origin}")
@@ -245,3 +248,8 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         if data_dict["dones"]:
             self.counter = 1
             self.current_depth = 1
+        # end_time = time.time()
+        # duration = end_time - start_time
+        # print(f"#{self._insert_index - 1} Duration: {duration:.4f}")
+
+            
