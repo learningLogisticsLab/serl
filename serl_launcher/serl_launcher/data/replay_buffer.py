@@ -76,7 +76,8 @@ class ReplayBuffer(Dataset):
 
     def get_iterator(self, queue_size: int = 2, sample_args: dict = {}, device=None):
         # See https://flax.readthedocs.io/en/latest/_modules/flax/jax_utils.html#prefetch_to_device
-        # queue_size = 2 should be ok for one GPU.
+        
+        # queue_size = 2 should be ok for one GPU. See more at https://chatgpt.com/share/687af063-d6b0-8004-92b6-0e88b9c5f1e8
         queue = collections.deque()
 
         def enqueue(n):

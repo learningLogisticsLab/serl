@@ -93,7 +93,7 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
 
     eval_env = gym.make(FLAGS.env)
     #if FLAGS.env == "PandaPickCube-v0":
-    eval_env = gym.wrappers.FlattenObservation(eval_env)
+    eval_env = gym.wrappers.FlattenObservation(eval_env) ## Note!! 
     eval_env = RecordEpisodeStatistics(eval_env)
 
     obs, _ = env.reset()
@@ -125,7 +125,8 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
             reward = np.asarray(reward, dtype=np.float32)
 
             running_return += reward
-
+            
+            # Insert dict into actor's two deques... learner will read from these
             data_store.insert(
                 dict(
                     observations=obs,
