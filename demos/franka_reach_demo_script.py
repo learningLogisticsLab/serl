@@ -32,8 +32,8 @@ truncateds = []     # List storing truncated flags for each episode
 dones = []          # List storing done flags (terminated or truncated) for each episode
 
 # Proportional and derivative control gain for action scaling -- empirically tuned
-Kp = 16.0      
-Kv = 20.0 
+Kp = 20.0      # Values between 20 and 24 seem to be somewhat stable for Kv = 24
+Kv = 24.0 
 
 # Robot configuration
 robot = 'franka'    # Robot type used in the environment, can be 'franka' or 'fetch'
@@ -43,42 +43,43 @@ task  = 'reach'     # Task type used in the environment, can be 'reach' or 'pick
 weld_flag = True    # Flag to activate weld constraint during pick-and-place
 
 
-def activate_weld(env, constraint_name="grasp_weld"):
-    """
-    Activate a weld constraint during pick portion of a demo
-    :param env: The environment containing the model
-    :param constraint_name: The name of the weld constraint to activate
-    :return: True if the weld was successfully activated, False if the constraint was not found
-    """
+# Franka sim environments do not have weld constraints like the franka_mujoco environments.
+# def activate_weld(env, constraint_name="grasp_weld"):
+#     """
+#     Activate a weld constraint during pick portion of a demo
+#     :param env: The environment containing the model
+#     :param constraint_name: The name of the weld constraint to activate
+#     :return: True if the weld was successfully activated, False if the constraint was not found
+#     """
 
-    try:
-        # Activate the weld constraint
-        env.unwrapped.model.eq(constraint_name).active = 1     
-        print("Activated weld")   
-        return True
+#     try:
+#         # Activate the weld constraint
+#         env.unwrapped.model.eq(constraint_name).active = 1     
+#         print("Activated weld")   
+#         return True
     
-    except KeyError:
-        print(f"Warning: Constraint '{constraint_name}' not found")
-        return False
+#     except KeyError:
+#         print(f"Warning: Constraint '{constraint_name}' not found")
+#         return False
 
-def deactivate_weld(env, constraint_name="grasp_weld"):
-    """
-    Deactivate a weld constraint during place portion of a demo
-    :param env: The environment containing the model
-    :param constraint_name: The name of the weld constraint to deactivate
-    :return: True if the weld was successfully deactivated, False if the constraint was not
-    found
-    """ 
+# def deactivate_weld(env, constraint_name="grasp_weld"):
+#     """
+#     Deactivate a weld constraint during place portion of a demo
+#     :param env: The environment containing the model
+#     :param constraint_name: The name of the weld constraint to deactivate
+#     :return: True if the weld was successfully deactivated, False if the constraint was not
+#     found
+#     """ 
     
-    try:
-        # Deactivate the weld constraint
-        env.unwrapped.model.eq(constraint_name).active = 0    
-        print("Deactivated weld")    
-        return True
+#     try:
+#         # Deactivate the weld constraint
+#         env.unwrapped.model.eq(constraint_name).active = 0    
+#         print("Deactivated weld")    
+#         return True
     
-    except KeyError:
-        print(f"Warning: Constraint '{constraint_name}' not found")
-        return False
+#     except KeyError:
+#         print(f"Warning: Constraint '{constraint_name}' not found")
+#         return False
 
 def store_transition_data(episode_dict, new_obs, rewards, action, info, terminated, truncated, done):
     """
@@ -273,122 +274,14 @@ def demo(env, lastObs):
         time_step += 1
 
         # Sleep
-        sleep(0.5)  # Optional: Slow down for better visualization
-   
-
-    # # Phase 2: Descend Grasp Object
-    # # Move gripper directly to object and close gripper
-    # # Terminate when relative distance to object < 5mm
-    # print(f"----------------------------------------------- Phase 2: Grip -----------------------------------------------")
-    # error = object_pos - current_pos # remove offset
-    # while (np.linalg.norm(error) >= error_threshold or fgr_pos>=0.39) and time_step <= env._max_episode_steps: # Cube of width 4cm, each finger open to 2cm
-    #     env.render()
-        
-    #     # Initialize action vector [x, y, z, gripper]
-    #     action = np.array([0., 0., 0., 0.])
-        
-    #     # Direct proportional control to object position
-    #     action[:3] = error * Kp
-        
-    #     # Close gripper to grasp object
-    #     action[len(action)-1] = -finger_delta_fast * 2
-        
-    #     # Execute action and collect data
-    #     new_obs, reward, terminated, truncated, info = env.step(action)
-    #     done = terminated or truncated
-    #     time_step += 1
-        
-    #     # Store episode data
-    #     episodeObs.append(new_obs)
-    #     episodeRews.append(reward)
-    #     episodeAcs.append(action)
-    #     episodeInfo.append(info)     
-    #     episodeTerminated.append(terminated)
-    #     episodeTruncated.append(truncated)
-    #     episodeDones.append(done)           
-
-    #     # Update state information
-    #     object_pos = new_obs['observation'][0:3]
-    #     fgr_pos = new_obs["observation"][3]  
-    #     current_pos = new_obs["observation"][4:7]
-    #     current_vel = new_obs["observation"][7:10]
-
-    #     error = object_pos - current_pos #- np.array([0.,0.,0.01]) # Grab lower
-
-    #    # Print debug information
-    #     print(
-    #             f"Time Step: {time_step}, Error: {np.linalg.norm(error):.4f}, "
-    #             f"Eff_pos: {np.array2string(current_pos, precision=3)}, "
-    #             f"obj_pos: {np.array2string(object_pos, precision=3)}, "
-    #             f"fgr_pos: {np.array2string(fgr_pos, precision=3)}, "
-    #             f"Error: {np.array2string(error, precision=3)}, "
-    #             f"Action: {np.array2string(action, precision=3)}"
-    #             )    
-    #     #sleep(0.5)  # Optional: Slow down for better visualization
-    
-    # # Phase 3: Transport to Goal
-    # # Move grasped object to desired goal position
-    # # Terminate when distance between object and goal < 1cm
-    # print(f"----------------------------------------------- Phase 3: Transport to Goal -----------------------------------------------")
-
-    # # Weld activation
-    # if weld_flag:
-    #     activate_weld(env, constraint_name="grasp_weld")
-
-    # # Set error between goal and hand assuming the object is grasped
-
-    # ho_error = object_pos - current_pos  # Error between object and hand position
-    # while np.linalg.norm(gh_error) >= 0.01 and time_step <= env._max_episode_steps:
-    #     env.render()
-        
-    #     action = np.array([0., 0., 0., 0.])
-        
-    #     # Proportional control toward goal position
-    #     action[:3] = gh_error[:3] * Kp
-        
-    #     # Maintain grip on object
-    #     #action[len(action)-1] = 0  
-        
-    #     # Execute action and collect data
-    #     new_obs, reward, terminated, truncated, info = env.step(action)
-    #     done = terminated or truncated
-    #     time_step += 1
-        
-    #     # Store episode data
-    #     store_transition_data(new_obs, rewards, action, info, terminated, truncated, done)
- 
-        
-    #     # Update state information
-    #     fgr_pos = new_obs["observation"][6] 
-    #     current_pos = new_obs["observation"][0:3]
-    #     object_pos = new_obs['observation'][7:10]
-    #     gh_error = goal - current_pos        # Error between goal and hand position
-    #     ho_error = object_pos - current_pos  # Error between object and hand position
-
-    #     # Print debug information
-    #     print(
-    #             f"Time Step: {time_step}, Error Norm: {np.linalg.norm(gh_error):.4f}, "
-    #             f"Eff_pos: {np.array2string(current_pos, precision=3)}, "
-    #             f"goal_pos: {np.array2string(goal, precision=3)}, "
-    #             f"fgr_pos: {np.array2string(fgr_pos, precision=2)}, "
-    #             f"Error: {np.array2string(gh_error, precision=3)}, "
-    #             f"Action: {np.array2string(action, precision=3)}"
-    #             )    
-    
-    #     sleep(0.5)  # Optional: Slow down for better visualization
-
-    #     ## Check for success and store episode data
-    #     gh_norm = np.linalg.norm(gh_error)
-    #     ho_nomr = np.linalg.norm(ho_error)
-    #     if  gh_norm < error_threshold and ho_nomr < error_threshold:
-        
+        sleep(0.25)  # Optional: Slow down for better visualization        
 
     # Store complete episode data in global lists only if we succeeded (avoid bad demos)
     store_episode_data(episode_data)
 
-    # Deactivate weld constraint after successful pick
-    if weld_flag:
-        deactivate_weld(env, constraint_name="grasp_weld")
+    # Deactivate weld constraint after successful pick -- franka_sim env does not have weld like franka_mujoco env.
+    # if weld_flag:
+    #     deactivate_weld(env, constraint_name="grasp_weld")
 
     # Close mujoco viewer
     env.close()
@@ -460,8 +353,8 @@ def main():
             print("Episode completed successfully!")
             print(f"Total successful demos: {num_demos}/{attempted_demos}")
     
-    ## Write data to demos folder
-    script_dir = '/data/serl/demos' # Assumes mounted /data folder.
+    ## Write data to demos folder. Assumes mounted /data folder and internal data folder.
+    script_dir = '/data/data/serl/demos'    
 
     # Create output filename with configuration details
     fileName = "data_" + robot + "_" + task
