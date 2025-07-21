@@ -16,10 +16,11 @@ Output: Compressed NPZ file containing action, observation, and info sequences
 """
 import os
 import numpy as np
-import gymnasium as gym
-from gymnasium.wrappers import TimeLimit
-from time import sleep
-from panda_mujoco_gym.envs import FrankaPickAndPlaceEnv
+import gym
+from time import sleep, perf_counter
+
+import franka_sim 
+import franka_sim.envs.panda_reach_gym_env as panda_reach_env
 
 # Global variables to store episode data across all iterations
 observations = []   # List storing observation sequences for each episode  
@@ -30,8 +31,13 @@ terminateds = []    # List storing terminated flags for each episode
 truncateds = []     # List storing truncated flags for each episode
 dones = []          # List storing done flags (terminated or truncated) for each episode
 
+# Proportional and derivative control gain for action scaling -- empirically tuned
+Kp = 16.0      
+Kv = 20.0 
+
 # Robot configuration
 robot = 'franka'    # Robot type used in the environment, can be 'franka' or 'fetch'
+task  = 'reach'     # Task type used in the environment, can be 'reach' or 'pick-and-place'
 
 # Weld constraint flag
 weld_flag = True    # Flag to activate weld constraint during pick-and-place
@@ -74,20 +80,347 @@ def deactivate_weld(env, constraint_name="grasp_weld"):
         print(f"Warning: Constraint '{constraint_name}' not found")
         return False
 
+def store_transition_data(episode_dict, new_obs, rewards, action, info, terminated, truncated, done):
+    """
+    Store transition data in the episode dictionary.
+    """
+    episode_dict["observations"].append(new_obs)
+    episode_dict["rewards"].append(rewards)
+    episode_dict["actions"].append(action)
+    episode_dict["infos"].append(info)
+    episode_dict["terminateds"].append(terminated)
+    episode_dict["truncateds"].append(truncated)
+    episode_dict["dones"].append(done) 
+
+def store_episode_data(episode_data):
+    """
+    Store complete episode data in global lists only if we succeeded (avoid bad demos).
+    """
+    actions.append(episode_data["actions"])
+    observations.append(episode_data["observations"])
+    infos.append(episode_data["infos"])
+    rewards.append(episode_data["rewards"])
+
+    # Optionally, also store the done/terminated/truncated flags globally if needed:
+    terminateds.append(episode_data["terminateds"])
+    truncateds.append(episode_data["truncateds"])
+    dones.append(episode_data["dones"])    
+
+def update_state_info(episode_data, time_step, dt, error):
+    """
+    Update and return the current state information. Always get the latest entry with [-1]
+    
+    Args:
+        new_obs (dict): New observation dictionary containing the current state.
+        time_step (int): Current time step in the episode.
+        dt (float): Current time step in the episode.
+        error (np.ndarray): Current error vector between object and end-effector positions. 
+
+    Returns:
+        object_pos (np.ndarray): Current position of the object in the environment.
+        gripper_pos (float): Current position of the gripper.
+        current_pos (np.ndarray): Current position of the end-effector.
+        current_vel (np.ndarray): Current velocity of the end-effector.
+    """
+    object_pos  = episode_data["observations"][-1][0:3]   # Block position
+    gripper_pos = episode_data["observations"][-1][3]     # Gripper position
+    current_pos = episode_data["observations"][-1][4:7]   # Panda/tcp position
+    current_vel = episode_data["observations"][-1][7:10]  # Panda/t
+
+
+    # Print debug information
+    print(
+        f"Time Step: {time_step}, Error: {np.linalg.norm(error):.4f}, "
+        f"bot_pos: {np.array2string(current_pos, precision=3)}, "
+        f"obj_pos: {np.array2string(object_pos, precision=3)}, "
+        f"fgr_pos: {np.array2string(gripper_pos, precision=2)}, "
+        f"err:     {np.array2string(error, precision=3)}, "
+        f"Action:  {np.array2string(episode_data['actions'][-1], precision=3)}, "
+        f"dt:      {dt: .4f}"
+    )
+    
+    
+    return object_pos, gripper_pos, current_pos, current_vel
+    
+def compute_error(object_pos, current_pos, prev_error, dt):
+    """Compute the error and its derivative between the object position and the current end-effector position.
+    Args:
+        object_pos (np.ndarray): The position of the object in the environment.
+        current_pos (np.ndarray): The current position of the end-effector.
+        prev_error (np.ndarray): The previous error value for derivative calculation.
+        dt (float): Time step for derivative calculation.
+        
+    Returns:
+        error (np.ndarray): The current error vector between the object and end-effector positions.
+        derror (np.ndarray): The derivative of the error vector.
+    """
+    error = object_pos - current_pos  # Calculate the error vector
+    derror = (error - prev_error) / dt  # Calculate the derivative of the error vector 
+
+    prev_error = error.copy()  # Update previous error for next iteration
+    return error, derror
+
+def demo(env, lastObs):
+    """
+    Executes a scripted reach sequence using a hierarchical approach.
+    
+    Implements 1-phase control strategy:
+    1. Approach: Move gripper above object (3cm offset)
+
+    Store observations, actions, and info in global lists for later replay buffer inclusion.
+
+    Gripper:
+    - The gripper in Mujoco ranges from a value of 0 to 0.4, where 0 is fully open and 0.4 is fully closed.
+    
+    Args:
+        env: Gymnasium environment instance
+        lastObs: Flattened observations set as object_pos, gripper_pos, panda/tcp_pos, panda/tcp_vel
+            - observations:
+                object_pos[0:3],
+                gripper_pos[3]
+                panda/tcp_pos[4:7],
+                panda/tcp_vel[7:10]
+
+    Returns:
+    """
+
+    ## Init goal, current_pos, and object position from last observation
+    object_pos       = np.zeros(3, dtype=np.float32)
+    current_pos      = np.zeros(3, dtype=np.float32)
+    gripper_pos      = np.zeros(1, dtype=np.float32)
+    object_rel_pos   = np.zeros(3, dtype=np.float32)
+
+
+    # Initialize (single) episode data collection
+    episodeObs  = []        # Observations for this episode  
+    episodeAcs  = []        # Actions for this episode
+    episodeRews = []        # Rewards for this episode
+    episodeInfo = []        # Info for this episode
+    episodeTerminated = []  # Terminated flags for this episode
+    episodeTruncated = []   # Truncated flags for this episode
+    episodeDones = []       # Done flags (terminated or truncated) for this episode
+    
+    # Dictionary to store episode data
+    episode_data = {
+        "observations": episodeObs,
+        "actions": episodeAcs,
+        "rewards": episodeRews,
+        "infos": episodeInfo,
+        "terminateds": episodeTerminated,
+        "truncateds": episodeTruncated,
+        "dones": episodeDones
+    }   
+
+    # close gripper
+    fgr_pos = 0
+
+    # Error thresholds
+    error_threshold = 0.04  # Threshold for stopping condition (Xmm)
+
+    finger_delta_fast = 0.05    # Action delta for fingers 5cm per step (will get clipped by controller)... more of a scalar. 
+    finger_delta_slow = 0.005   # Franka has a range from 0 to 4cm per finger
+
+    ## Extract data   
+    object_pos = lastObs[0:3]  # block pos
+    current_pos = lastObs[4:7] # panda/tcp_pos
+
+    # Relative position between end-effector and object
+    dt = env.unwrapped.model.opt.timestep  # Mujoco time step
+    prev_error = np.zeros_like(object_pos)
+    error, derror = compute_error(object_pos, current_pos, prev_error, dt)    
+
+    time_step = 0  # Track total time_steps in episode
+    episodeObs.append(lastObs) # Store initial observation
+
+    # Initialize previous time for dt calculation
+    prev_time = perf_counter()  # Start time for dt calculation
+    
+    # Phase 1: Reach
+    # Terminate when distance to above-object position < error_threshold
+    print(f"----------------------------------------------- Phase 1: Reach -----------------------------------------------")
+    while np.linalg.norm(error) >= error_threshold and time_step <= env.spec.max_episode_steps:
+        env.render()  # Visual feedback
+        
+        # Record current time and compute dt
+        curr_time = perf_counter()
+        dt = curr_time - prev_time
+        prev_time = curr_time
+
+        # Initialize action vector [x, y, z]
+        action = np.array([0., 0., 0.])
+        
+        # Proportional control with gain of 6
+        action[:3] = error * Kp + derror * Kv
+        prev_error = error.copy()  # Update previous error for next iteration
+        
+        # Keep gripper closed -- no need. only 3 dimensions of control
+        #action[ len(action)-1 ] = -finger_delta_fast # Maintain gripper closed.
+        
+        # Unpack new Gymnasium step API
+        new_obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+        
+        # Store episode data
+        store_transition_data(episode_data, new_obs, reward, action, info, terminated, truncated, done)
+
+        # Update and print state information
+        object_pos,gripper_pos,cur_pos,cur_vel = update_state_info(episode_data, time_step, dt, error)
+
+        # Update error for next iteration
+        error, derror = compute_error(object_pos, cur_pos, prev_error, dt)
+
+       # Update time step
+        time_step += 1
+
+        # Sleep
+        sleep(0.5)  # Optional: Slow down for better visualization
+   
+
+    # # Phase 2: Descend Grasp Object
+    # # Move gripper directly to object and close gripper
+    # # Terminate when relative distance to object < 5mm
+    # print(f"----------------------------------------------- Phase 2: Grip -----------------------------------------------")
+    # error = object_pos - current_pos # remove offset
+    # while (np.linalg.norm(error) >= error_threshold or fgr_pos>=0.39) and time_step <= env._max_episode_steps: # Cube of width 4cm, each finger open to 2cm
+    #     env.render()
+        
+    #     # Initialize action vector [x, y, z, gripper]
+    #     action = np.array([0., 0., 0., 0.])
+        
+    #     # Direct proportional control to object position
+    #     action[:3] = error * Kp
+        
+    #     # Close gripper to grasp object
+    #     action[len(action)-1] = -finger_delta_fast * 2
+        
+    #     # Execute action and collect data
+    #     new_obs, reward, terminated, truncated, info = env.step(action)
+    #     done = terminated or truncated
+    #     time_step += 1
+        
+    #     # Store episode data
+    #     episodeObs.append(new_obs)
+    #     episodeRews.append(reward)
+    #     episodeAcs.append(action)
+    #     episodeInfo.append(info)     
+    #     episodeTerminated.append(terminated)
+    #     episodeTruncated.append(truncated)
+    #     episodeDones.append(done)           
+
+    #     # Update state information
+    #     object_pos = new_obs['observation'][0:3]
+    #     fgr_pos = new_obs["observation"][3]  
+    #     current_pos = new_obs["observation"][4:7]
+    #     current_vel = new_obs["observation"][7:10]
+
+    #     error = object_pos - current_pos #- np.array([0.,0.,0.01]) # Grab lower
+
+    #    # Print debug information
+    #     print(
+    #             f"Time Step: {time_step}, Error: {np.linalg.norm(error):.4f}, "
+    #             f"Eff_pos: {np.array2string(current_pos, precision=3)}, "
+    #             f"obj_pos: {np.array2string(object_pos, precision=3)}, "
+    #             f"fgr_pos: {np.array2string(fgr_pos, precision=3)}, "
+    #             f"Error: {np.array2string(error, precision=3)}, "
+    #             f"Action: {np.array2string(action, precision=3)}"
+    #             )    
+    #     #sleep(0.5)  # Optional: Slow down for better visualization
+    
+    # # Phase 3: Transport to Goal
+    # # Move grasped object to desired goal position
+    # # Terminate when distance between object and goal < 1cm
+    # print(f"----------------------------------------------- Phase 3: Transport to Goal -----------------------------------------------")
+
+    # # Weld activation
+    # if weld_flag:
+    #     activate_weld(env, constraint_name="grasp_weld")
+
+    # # Set error between goal and hand assuming the object is grasped
+
+    # ho_error = object_pos - current_pos  # Error between object and hand position
+    # while np.linalg.norm(gh_error) >= 0.01 and time_step <= env._max_episode_steps:
+    #     env.render()
+        
+    #     action = np.array([0., 0., 0., 0.])
+        
+    #     # Proportional control toward goal position
+    #     action[:3] = gh_error[:3] * Kp
+        
+    #     # Maintain grip on object
+    #     #action[len(action)-1] = 0  
+        
+    #     # Execute action and collect data
+    #     new_obs, reward, terminated, truncated, info = env.step(action)
+    #     done = terminated or truncated
+    #     time_step += 1
+        
+    #     # Store episode data
+    #     store_transition_data(new_obs, rewards, action, info, terminated, truncated, done)
+ 
+        
+    #     # Update state information
+    #     fgr_pos = new_obs["observation"][6] 
+    #     current_pos = new_obs["observation"][0:3]
+    #     object_pos = new_obs['observation'][7:10]
+    #     gh_error = goal - current_pos        # Error between goal and hand position
+    #     ho_error = object_pos - current_pos  # Error between object and hand position
+
+    #     # Print debug information
+    #     print(
+    #             f"Time Step: {time_step}, Error Norm: {np.linalg.norm(gh_error):.4f}, "
+    #             f"Eff_pos: {np.array2string(current_pos, precision=3)}, "
+    #             f"goal_pos: {np.array2string(goal, precision=3)}, "
+    #             f"fgr_pos: {np.array2string(fgr_pos, precision=2)}, "
+    #             f"Error: {np.array2string(gh_error, precision=3)}, "
+    #             f"Action: {np.array2string(action, precision=3)}"
+    #             )    
+    
+    #     sleep(0.5)  # Optional: Slow down for better visualization
+
+    #     ## Check for success and store episode data
+    #     gh_norm = np.linalg.norm(gh_error)
+    #     ho_nomr = np.linalg.norm(ho_error)
+    #     if  gh_norm < error_threshold and ho_nomr < error_threshold:
+        
+
+    # Store complete episode data in global lists only if we succeeded (avoid bad demos)
+    store_episode_data(episode_data)
+
+    # Deactivate weld constraint after successful pick
+    if weld_flag:
+        deactivate_weld(env, constraint_name="grasp_weld")
+
+    # Close mujoco viewer
+    env.close()
+
+    # Break out of the loop to start a new episode
+    return True
+        
+    # # If we reach here, the episode was not successful
+    # if weld_flag:
+    #     print("Failed to transport object to goal position. Deactivating weld.")
+    #     deactivate_weld(env, constraint_name="grasp_weld")
+    
 def main():
     """
     Orchestrates the data generation process by running multiple episodes 
-    of the pick-and-place task.
+    of the task.
     
     Creates environment, runs scripted episodes, and saves demonstration data
-    to compressed NPZ file for use with stable-baselines3.
+    to compressed NPZ.
+
+    Arguments that can be configured with flags:
+    - env
+    - render
+    - num_demos
+
     """
-    # Initialize Fetch pick-and-place environment
-    env = FrankaPickAndPlaceEnv(reward_type="sparse", render_mode="rgb_array")
-    env = TimeLimit(env, max_episode_steps=50)  
+    # Initialize the Panda environment.
+    env = gym.make("PandaReachCube-v0", render_mode="human")
+    env = gym.wrappers.FlattenObservation(env) 
 
     # Adjust physical settings
-    # env.model.opt.timestep = 0.001  # Smaller timestep for more accurate physics. Default is 0.002.
+    # env.model.opt.time_step = 0.001  # Smaller time_step for more accurate physics. Default is 0.002.
     # env.model.opt.iterations = 100  # More solver iterations for better contact resolution. Default is 50.
 
     # Configuration parameters
@@ -99,17 +432,27 @@ def main():
     num_demos = 0         # Counter for successful demonstration episodes 
     
     # Reset environment to initial state - render for the first time.
-    obs, _ = env.reset()
+    obs, _ = env.reset() # For reach environment expect 10 observations: r_pos, r_vel, finger, object_pos.
+
+    # Adjust camera view for better visualization
+    viewer = env.unwrapped._viewer.viewer
+    if hasattr(viewer, 'cam'):
+        viewer.cam.lookat[:] = [0, 0, 0.1]   # Center of robot (adjust as needed)
+        viewer.cam.distance = 3.0            # Camera distance
+        viewer.cam.azimuth = 180             # 0 = right, 90 = front, 180 = left
+        viewer.cam.elevation = -30           # Negative = above, positive = below
+
     print("Reset!")
     
     # Generate demonstration episodes
     while len(actions) < attempted_demos:
         obs,_ = env.reset() # Reset environment for new episode
+        
         print(f"We will run a total of: {attempted_demos} demos!!")
         print("Demo: #", len(actions)+1)
 
         # Execute pick-and-place task
-        res = pick_and_place_demo(env, obs)
+        res = demo(env, obs)
 
         # Print success message
         if res:                        
@@ -118,21 +461,19 @@ def main():
             print(f"Total successful demos: {num_demos}/{attempted_demos}")
     
     ## Write data to demos folder
-    # 1. Get the absolute path of this script
-    #script_path = os.path.abspath(__file__)
+    script_dir = '/data/serl/demos' # Assumes mounted /data folder.
 
-    # 2. Extract its directory
-    #script_dir = os.path.dirname(script_path)
-    script_dir = '/home/student/data/franka_baselines/demos/pick_n_place' # Assumes data folder in user directory.
-
-    # 3. Create output filename with configuration details
-    fileName = "data_" + robot
+    # Create output filename with configuration details
+    fileName = "data_" + robot + "_" + task
     fileName += "_" + initStateSpace
     fileName += "_" + str(attempted_demos)
     fileName += ".npz"
 
-    # 3. Build a filename in that same directory
+    # Build a filename in that same directory
     out_path = os.path.join(script_dir, fileName)    
+
+    # Ensure the directory exists
+    os.makedirs(script_dir, exist_ok=True)
     
     # Save collected data to compressed numpy NPZ file
     # Set acs,obs,info as keys in dict 
@@ -146,262 +487,7 @@ def main():
                         dones = dones)
     
     print(f"Data saved to {fileName}.")
+    print(f"Total successful demos: {num_demos}/{attempted_demos}")
 
-def pick_and_place_demo(env, lastObs):
-    """
-    Executes a scripted pick-and-place sequence using a hierarchical approach.
-    
-    Implements 4-phase control strategy:
-    1. Approach: Move gripper above object (3cm offset)
-    2. Grasp: Move to object and close gripper  
-    3. Transport: Move grasped object to goal position
-    4. Maintain: Hold position until episode ends
-
-    Store observations, actions, and info in global lists for later replay buffer inclusion.
-    
-    Args:
-        env: Gymnasium environment instance
-        lastObs: Last observation containing goal and object state information
-            - desired_goal: Target position for object placement
-            - observations:
-                ee_position[0:3],
-                ee_velocity[3:6],
-                fingers_width[6],
-                object_position[7:10],
-                object_rotation[10:13],
-                object_velp[13:16],
-                object_velr[16:19],
-    """
-
-    ## Init goal, current_pos, and object position from last observation
-    goal             = np.zeros(3, dtype=np.float32)
-    current_pos      = np.zeros(3, dtype=np.float32)
-    object_pos       = np.zeros(3, dtype=np.float32)
-    object_rel_pos   = np.zeros(3, dtype=np.float32)
-    fgr_pos          = np.zeros(1, dtype=np.float32)
-
-    # Initialize episode data collection
-    episodeObs  = []        # Observations for this episode  
-    episodeAcs  = []        # Actions for this episode
-    episodeRews = []        # Rewards for this episode
-    episodeInfo = []        # Info for this episode
-    episodeTerminated = []  # Terminated flags for this episode
-    episodeTruncated = []   # Truncated flags for this episode
-    episodeDones = []       # Done flags (terminated or truncated) for this episode
-
-    # Proportional control gain for action scaling -- empirically tuned
-    Kp = 8.0            
-
-    # pre_pick_offset
-    pre_pick_offset = np.array([0,0,0.03], dtype=float)  # Offset to approach object safely (3cm)
-    
-    # Error thresholds
-    error_threshold = 0.011  # Threshold for stopping condition (Xmm)
-
-    finger_delta_fast = 0.05    # Action delta for fingers 5cm per step (will get clipped by controller)... more of a scalar. 
-    finger_delta_slow = 0.005   # Franka has a range from 0 to 4cm per finger
-
-    ## Extract data
-    # Extract desired position from desired_goal dict
-    goal = lastObs["desired_goal"][0:3]
-    
-    # Current robot end-effector position from observation dict
-    current_pos = lastObs["observation"][0:3]
-    
-    # Current object position from observation dict: 
-    object_pos = lastObs["observation"][7:10]
-    
-    # Relative position between end-effector and object
-    object_rel_pos = object_pos - current_pos  
-    
-    ## Phase 1: Approach Object (Above)
-    # Create target position 3cm above the object. Use copy() method.
-    error = object_rel_pos.copy() 
-    error+=pre_pick_offset  # Move 3cm above object for safe approach. Fingers should still end up surrounding object.
-    
-    timeStep = 0  # Track total timesteps in episode
-    episodeObs.append(lastObs)
-    
-    # Phase 1: Move gripper to position above object
-    # Terminate when distance to above-object position < 5mm
-    print(f"----------------------------------------------- Phase 1: Approach Object -----------------------------------------------")
-    while np.linalg.norm(error) >= error_threshold and timeStep <= env._max_episode_steps:
-        env.render()  # Visual feedback
-        
-        # Initialize action vector [x, y, z, gripper]
-        action = np.array([0., 0., 0., 0.])
-        
-        # Proportional control with gain of 6
-        # action = Kp * error
-        action[:3] = error * Kp
-        
-        # Open gripper for approach
-        action[ len(action)-1 ] = 0.05
-        
-        # Unpack new Gymnasium step API
-        new_obs, reward, terminated, truncated, info = env.step(action)
-        done = terminated or truncated
-        timeStep += 1
-        
-        # Store episode data
-        episodeAcs.append(action)
-        episodeInfo.append(info)
-        episodeRews.append(reward)
-        episodeObs.append(new_obs)
-        episodeTerminated.append(terminated)
-        episodeTruncated.append(truncated)
-        episodeDones.append(done)
-
-        # Update state information
-        fgr_pos          = new_obs["observation"][6]  
-        current_pos = new_obs["observation"][0:3]
-        object_pos  = new_obs['observation'][7:10]  
-        error            = (object_pos+pre_pick_offset) - current_pos  # Error with regard to offset position         
-
-        # Print debug information
-        print(
-                f"Time Step: {timeStep}, Error: {np.linalg.norm(error):.4f}, "
-                f"Eff_pos: {np.array2string(current_pos, precision=3)}, "
-                f"obj_pos: {np.array2string(object_pos, precision=3)}, "
-                f"fgr_pos: {np.array2string(fgr_pos, precision=2)}, "
-                f"Error: {np.array2string(error, precision=3)}, "
-                f"Action: {np.array2string(action, precision=3)}"
-                )
-        
-    # Phase 2: Descend Grasp Object
-    # Move gripper directly to object and close gripper
-    # Terminate when relative distance to object < 5mm
-    print(f"----------------------------------------------- Phase 2: Grip -----------------------------------------------")
-    error = object_pos - current_pos # remove offset
-    while (np.linalg.norm(error) >= error_threshold or fgr_pos>=0.39) and timeStep <= env._max_episode_steps: # Cube of width 4cm, each finger open to 2cm
-        env.render()
-        
-        # Initialize action vector [x, y, z, gripper]
-        action = np.array([0., 0., 0., 0.])
-        
-        # Direct proportional control to object position
-        action[:3] = error * Kp
-        
-        # Close gripper to grasp object
-        action[len(action)-1] = -finger_delta_fast * 2
-        
-        # Execute action and collect data
-        new_obs, reward, terminated, truncated, info = env.step(action)
-        done = terminated or truncated
-        timeStep += 1
-        
-        # Store episode data
-        episodeObs.append(new_obs)
-        episodeRews.append(reward)
-        episodeAcs.append(action)
-        episodeInfo.append(info)     
-        episodeTerminated.append(terminated)
-        episodeTruncated.append(truncated)
-        episodeDones.append(done)           
-
-        # Update state information
-        fgr_pos = new_obs["observation"][6]  
-        current_pos = new_obs["observation"][0:3]
-        object_pos = new_obs['observation'][7:10]
-        error = object_pos - current_pos #- np.array([0.,0.,0.01]) # Grab lower
-
-       # Print debug information
-        print(
-                f"Time Step: {timeStep}, Error: {np.linalg.norm(error):.4f}, "
-                f"Eff_pos: {np.array2string(current_pos, precision=3)}, "
-                f"obj_pos: {np.array2string(object_pos, precision=3)}, "
-                f"fgr_pos: {np.array2string(fgr_pos, precision=3)}, "
-                f"Error: {np.array2string(error, precision=3)}, "
-                f"Action: {np.array2string(action, precision=3)}"
-                )    
-        #sleep(0.5)  # Optional: Slow down for better visualization
-    
-    # Phase 3: Transport to Goal
-    # Move grasped object to desired goal position
-    # Terminate when distance between object and goal < 1cm
-    print(f"----------------------------------------------- Phase 3: Transport to Goal -----------------------------------------------")
-
-    # Weld activation
-    if weld_flag:
-        activate_weld(env, constraint_name="grasp_weld")
-
-    # Set error between goal and hand assuming the object is grasped
-    gh_error = goal - current_pos        # Error between goal and hand position
-    ho_error = object_pos - current_pos  # Error between object and hand position
-    while np.linalg.norm(gh_error) >= 0.01 and timeStep <= env._max_episode_steps:
-        env.render()
-        
-        action = np.array([0., 0., 0., 0.])
-        
-        # Proportional control toward goal position
-        action[:3] = gh_error[:3] * Kp
-        
-        # Maintain grip on object
-        #action[len(action)-1] = 0  
-        
-        # Execute action and collect data
-        new_obs, reward, terminated, truncated, info = env.step(action)
-        done = terminated or truncated
-        timeStep += 1
-        
-        # Store episode data
-        episodeObs.append(new_obs)
-        episodeRews.append(reward)
-        episodeAcs.append(action)
-        episodeInfo.append(info)
-        episodeTerminated.append(terminated)
-        episodeTruncated.append(truncated)
-        episodeDones.append(done)        
-        
-        # Update state information
-        fgr_pos = new_obs["observation"][6] 
-        current_pos = new_obs["observation"][0:3]
-        object_pos = new_obs['observation'][7:10]
-        gh_error = goal - current_pos        # Error between goal and hand position
-        ho_error = object_pos - current_pos  # Error between object and hand position
-
-        # Print debug information
-        print(
-                f"Time Step: {timeStep}, Error Norm: {np.linalg.norm(gh_error):.4f}, "
-                f"Eff_pos: {np.array2string(current_pos, precision=3)}, "
-                f"goal_pos: {np.array2string(goal, precision=3)}, "
-                f"fgr_pos: {np.array2string(fgr_pos, precision=2)}, "
-                f"Error: {np.array2string(gh_error, precision=3)}, "
-                f"Action: {np.array2string(action, precision=3)}"
-                )    
-    
-        sleep(0.5)  # Optional: Slow down for better visualization
-
-        ## Check for success and store episode data
-        gh_norm = np.linalg.norm(gh_error)
-        ho_nomr = np.linalg.norm(ho_error)
-        if  gh_norm < error_threshold and ho_nomr < error_threshold:
-        
-            # Store complete episode data in global lists only if we succeeded (avoid bad demos)
-            actions.append(episodeAcs)
-            observations.append(episodeObs)
-            infos.append(episodeInfo)
-            rewards.append(episodeRews)
-
-            # Optionally, also store the done/terminated/truncated flags globally if needed:
-            terminateds.append(episodeTerminated)
-            truncateds.append(episodeTruncated)
-            dones.append(episodeDones)    
-
-            # Deactivate weld constraint after successful pick
-            if weld_flag:
-                deactivate_weld(env, constraint_name="grasp_weld")
-
-            # Close mujoco viewer
-            env.close()
-
-            # Break out of the loop to start a new episode
-            return True
-        
-    # If we reach here, the episode was not successful
-    if weld_flag:
-        print("Failed to transport object to goal position. Deactivating weld.")
-        deactivate_weld(env, constraint_name="grasp_weld")
-    
 if __name__ == "__main__":
     main()
