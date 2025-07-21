@@ -49,7 +49,7 @@ flags.DEFINE_integer("log_period", 10, "Logging period.")
 flags.DEFINE_integer("eval_period", 2000, "Evaluation period.")
 flags.DEFINE_integer("eval_n_trajs", 5, "Number of trajectories for evaluation.")
 
-# flag to indicate if this is a leaner or a actor
+# flag to indicate if this is a learner or a actor
 flags.DEFINE_boolean("learner", False, "Is this a learner or a trainer.")
 flags.DEFINE_boolean("actor", False, "Is this a learner or a trainer.")
 flags.DEFINE_boolean("render", False, "Render the environment.")
@@ -92,8 +92,8 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
     client.recv_network_callback(update_params)
 
     eval_env = gym.make(FLAGS.env)
-    if FLAGS.env == "PandaPickCube-v0":
-        eval_env = gym.wrappers.FlattenObservation(eval_env)
+    #if FLAGS.env == "PandaPickCube-v0":
+    eval_env = gym.wrappers.FlattenObservation(eval_env)
     eval_env = RecordEpisodeStatistics(eval_env)
 
     obs, _ = env.reset()
@@ -167,14 +167,14 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
 
 ##############################################################################
 
-
+ 
 def learner(rng, agent: SACAgent, replay_buffer, replay_iterator):
     """
     The learner loop, which runs when "--learner" is set to True.
     """
     # set up wandb and logging
     wandb_logger = make_wandb_logger(
-        project="serl_dev",
+        project=FLAGS.exp_name,
         description=FLAGS.exp_name or FLAGS.env,
         debug=FLAGS.debug,
     )
@@ -266,8 +266,8 @@ def main(_):
     else:
         env = gym.make(FLAGS.env)
 
-    if FLAGS.env == "PandaPickCube-v0":
-        env = gym.wrappers.FlattenObservation(env)
+    #if FLAGS.env == "PandaPickCube-v0":
+    env = gym.wrappers.FlattenObservation(env)
 
     rng, sampling_rng = jax.random.split(rng)
     agent: SACAgent = make_sac_agent(
@@ -279,7 +279,7 @@ def main(_):
     # replicate agent across devices
     # need the jnp.array to avoid a bug where device_put doesn't recognize primitives
     agent: SACAgent = jax.device_put(
-        jax.tree_map(jnp.array, agent), sharding.replicate()
+        jax.tree.map(jnp.array, agent), sharding.replicate()
     )
 
     if FLAGS.learner:
@@ -288,7 +288,12 @@ def main(_):
             env,
             capacity=FLAGS.replay_buffer_capacity,
             rlds_logger_path=FLAGS.log_rlds_path,
-            type="replay_buffer",
+            type="fractal_symmetry_replay_buffer",
+            branch_method="test",
+            split_method="test",
+            workspace_width=0.5,
+            x_obs_idx=np.array([0,7]),
+            y_obs_idx=np.array([1,8]),
             preload_rlds_path=FLAGS.preload_rlds_path,
         )
         replay_iterator = replay_buffer.get_iterator(
