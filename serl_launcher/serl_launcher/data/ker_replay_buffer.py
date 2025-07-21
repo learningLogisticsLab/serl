@@ -1,9 +1,13 @@
+import copy
+
 import gym
 import numpy as np
 from serl_launcher.data.dataset import DatasetDict, _sample
 from serl_launcher.data.replay_buffer import ReplayBuffer
-from transforms3d.euler import euler2mat
+from transforms3d.euler import euler2mat, euler2quat, quat2euler
 from flax.core import frozen_dict
+
+SIMULATION = True
 
 class KerReplayBuffer(ReplayBuffer):
     """
@@ -17,11 +21,13 @@ class KerReplayBuffer(ReplayBuffer):
         capacity: int,
         workspace_width: int,
         n_KER: int,
-        max_z_theta: float
+        max_z_theta: float,
+        z_theta_list: np.array = []
     ):
         self.workspace_width = workspace_width # Total 1D distance for transform calculations
         self.n_KER = n_KER # Number of reflectional planes to generate. Number of new traj = n_ker - 1
         self.max_z_theta = max_z_theta # Max theta possible for generating reflectional planes
+        self.z_theta_list = z_theta_list
 
         super().__init__(
             observation_space=observation_space,
@@ -43,24 +49,40 @@ class KerReplayBuffer(ReplayBuffer):
         param_len = len(param)
 
         # transform param appropriately
-        if param_len == 4:  #action
-            o_act = param[0:3]
-            s_act = self.linear_vector_symmetric_with_rot_plane(o_act, rot_z_theta, inv_rot_z_theta)
-            param[0:3] =  s_act
+        if SIMULATION: # franka_sim
+            if param_len == 4:  #action
+                o_act = param[0:3]
+                s_act = self.linear_vector_symmetric_with_rot_plane(o_act, rot_z_theta, inv_rot_z_theta)
+                param[0:3] =  s_act
 
-        elif param_len == 10:     # observation or next_observation
-            # pos
-            o_pos = param[0:3]
-            s_pos = self.linear_vector_symmetric_with_rot_plane(o_pos, rot_z_theta, inv_rot_z_theta)
-            param[0:3] =  s_pos
-            # vel
-            o_vel = param[3:6]
-            s_vel = self.linear_vector_symmetric_with_rot_plane(o_vel, rot_z_theta, inv_rot_z_theta)
-            param[3:6] =  s_vel
-            # obj_pos
-            o_obj_pos = param[7:10]
-            s_obj_pos = self.linear_vector_symmetric_with_rot_plane(o_obj_pos, rot_z_theta, inv_rot_z_theta)
-            param[7:10] =  s_obj_pos
+            elif param_len == 10:     # observation
+                # pos
+                o_pos = param[0:3]
+                s_pos = self.linear_vector_symmetric_with_rot_plane(o_pos, rot_z_theta, inv_rot_z_theta)
+                param[0:3] =  s_pos
+                # vel
+                o_vel = param[3:6]
+                s_vel = self.linear_vector_symmetric_with_rot_plane(o_vel, rot_z_theta, inv_rot_z_theta)
+                param[3:6] =  s_vel
+                # obj_pos
+                o_obj_pos = param[7:10]
+                s_obj_pos = self.linear_vector_symmetric_with_rot_plane(o_obj_pos, rot_z_theta, inv_rot_z_theta)
+                param[7:10] =  s_obj_pos
+        # else: # Real robot
+        #     if param_len == 7:  # action
+        #         # xyz
+        #         o_act_pos = param[0:3]
+        #         s_act_pos = self.linear_vector_symmetric_with_rot_plane(o_act_pos, rot_z_theta, inv_rot_z_theta)
+        #         param[0:3] =  s_act_pos
+        #         # quat
+        #         o_act_quat = param[3:7]
+        #         s_act_quat = self.reflect_orientation_with_rot_plane(o_act_quat, rot_z_theta, inv_rot_z_theta)
+        #         param[3:7] = s_act_quat
+
+
+
+        #     elif param_len == 20: # observation
+                
 
         return param.copy()
     
@@ -71,6 +93,8 @@ class KerReplayBuffer(ReplayBuffer):
         s_data =  np.dot(rot_z_theta,o_data_hat)
         return s_data.copy()
     
+    # def reflect_orientation_with_rot_plane(self, o_data, theta):
+    #     # reflects orientation about plane given by theta
 
     def ker_process(self,data_dict):
         ''' Will do invariant transform augmentation. Augments time-steps by 2nker - 1 + nger
@@ -85,15 +109,16 @@ class KerReplayBuffer(ReplayBuffer):
 
         ka_episodes_set = []
         ka_episodes_set.append([obs, next_obs, acts]) # Add next_obs later
-        z_theta_set = []
 
-        # One symmetry will be done in the y ker, so here n_KER need to minus 1
-        for _ in range(self.n_KER-1):
-            z_theta = np.random.uniform(0, self.max_z_theta)
-            z_theta_set.append(z_theta)
+        # If the user has not passed in a specific z_theta_list, fill it randomly
+        if self.z_theta_list == []:
+            # One symmetry will be done in the y ker, so here n_KER need to minus 1
+            for _ in range(self.n_KER-1):
+                z_theta = np.random.uniform(0, self.max_z_theta)
+                self.z_theta_list.append(z_theta)
 
         ka_episodes_tem = []
-        for z_theta in z_theta_set:
+        for z_theta in self.z_theta_list:
 
             for [o_obs, o_next_obs, o_acts] in ka_episodes_set:
                 # Symmetric counterparts
@@ -122,10 +147,10 @@ class KerReplayBuffer(ReplayBuffer):
         return ka_episodes_set
         #--------------- end.
     
-    def insert(self, ka_episodes_set, data_dict):
+    def insert(self, ka_episodes_set, base_data_dict):
         ''' Reformats transformed episodes and inserts them into the replay buffer
         '''
-
+        data_dict = copy.deepcopy(base_data_dict)
         for episode in ka_episodes_set:
             # Overwrite initial data_dict values for observations, next_observations, and actions with transformed versions
             data_dict['observations'] = episode[0]
