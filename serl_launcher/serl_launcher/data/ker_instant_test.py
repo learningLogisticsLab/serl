@@ -1,3 +1,5 @@
+#Run this file after any code changes to see if transforms are still being performed correctly
+
 import gym.wrappers
 import numpy as np
 import gym
@@ -11,6 +13,7 @@ WORKSPACE_WIDTH =   0.5
 CAPACITY = 1_000_000
 MAX_Z_THETA = 0.1443
 THETA_LIST = [np.pi/25, np.pi/30, np.pi/35, np.pi/40]
+#Expected output for n_ker = 4 and the given theta_list
 EXPECTED_OUTPUT = np.float32([
     [1.,1.,1.],[1.217273,-0.7198933,1.],
     [1.1860592,-0.7702359,1.],[1.1624864,-0.8053727,1.],
@@ -47,6 +50,7 @@ def main(_):
     print(action_space)
 
     buffer = KerReplayBuffer(
+        env_name="PandaPickCube-v0",
         observation_space=observation_space,
         action_space=action_space,
         capacity=CAPACITY,
@@ -69,7 +73,7 @@ def main(_):
         dones=truncated or terminated,
     )
     
-    print(f"\n\ndata_dict: \n{generated_dict}\n\n")
+    #print(f"\n\ndata_dict: \n{generated_dict}\n\n")
 
     transformed_data_dicts = buffer.ker_process(generated_dict)
 
@@ -91,8 +95,9 @@ def main(_):
     
     # Is the expected output equal to the actual output?
     assert np.array_equal(EXPECTED_OUTPUT, ACTUAL_OUTPUT), f"ERROR: actual output:\n{ACTUAL_OUTPUT}\n\ndoes not match expected output:\n{EXPECTED_OUTPUT}"
-
-    buffer.insert(transformed_data_dicts, generated_dict)
+    if np.array_equal(EXPECTED_OUTPUT, ACTUAL_OUTPUT):
+        print("Output is as expected")
+    buffer.insert(generated_dict, transformed_data_dicts)
 
 if __name__ == "__main__":
     app.run(main)
