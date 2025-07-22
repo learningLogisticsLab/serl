@@ -35,7 +35,7 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
         physics_dt: float = 0.002,
         time_limit: float = 10.0,
         render_spec: GymRenderingSpec = GymRenderingSpec(),
-        render_mode: Literal["rgb_array", "human"] = "rgb_array",
+        render_mode: Literal["rgb_array", "human"] = None,
         image_obs: bool = False,
     ):
         self._action_scale = action_scale
@@ -145,7 +145,8 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
             height=960,
             camera_id=0
         )
-        self._viewer.render(self.render_mode)
+        if self.render_mode:
+            self._viewer.render(self.render_mode)
 
     def reset(
         self, seed=None, **kwargs

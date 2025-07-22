@@ -22,19 +22,13 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         method_check = "split_method"
         match split_method:
             case "time":
-                # assert "timesplit_freq" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "depth")
-                # self.timesplit_freq=kwargs["timesplit_freq"]
-                # del kwargs["timesplit_freq"]
-                self.split = self.time_split
-            case "rel_pos":
-                print("NOT IMPLEMENTED")
-                self.split = self.rel_pos_split
-            case "height":
-                print("NOT IMPLEMENTED")
-                self.split = self.height_split
-            case "velocity":
-                print("NOT IMPLEMENTED")
-                self.split = self.velocity_split
+                assert "depth" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "depth")
+                self.max_depth=kwargs["depth"]
+                del kwargs["depth"]
+
+                assert "max_steps" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "max_steps")
+                self.split = self.time_split 
+
             case "test":
                 self.split = self.test_split
             case _:
@@ -44,7 +38,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         match branch_method:
             case "fractal":
                 assert "depth" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "depth")
-                self.depth=kwargs["depth"]
+                self.max_depth=kwargs["depth"]
                 del kwargs["depth"]
 
                 assert "dendrites" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "dendrites")
@@ -76,9 +70,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
 
             case _:
                 raise ValueError("incorrect value passed to branch_method")
-
-        for k in kwargs.keys():
-            print(f"\033[33mWARNING \033[0m argument \"{k}\" not used")
         
         self.x_obs_idx = kwargs["x_obs_idx"]
         self.y_obs_idx = kwargs["y_obs_idx"]
@@ -86,6 +77,9 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         self.current_depth = 1
         self.counter = 1
         self.branch_index = [workspace_width/2]
+
+        for k in kwargs.keys():
+            print(f"\033[33mWARNING \033[0m argument \"{k}\" not used")
         
         # TODO
         #   Add flags for variables passed to
@@ -103,7 +97,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             capacity=capacity,
         )
 
-    def _handle_bad_args_(type: str, method: str, arg: str) :
+    def _handle_bad_args_(self, type: str, method: str, arg: str) :
         return f"\033[31mERROR: \033[0m{arg} must be defined for {type} \"{method}\""
     
 
@@ -120,14 +114,14 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         # while(not self.current_branch_count % 2):
         #     self.current_branch_count = np.random.randint(2500)
         # return self.current_branch_count
-        return 9
+        return 1
     
     def fractal_branch(self):
         # return a new number of branches = dendrites ^ depth
         temp = self.dendrites ** self.current_depth
         self.current_depth += 1
-        if self.current_depth > self.depth:
-            return self.dendrites ** self.depth
+        if self.current_depth > self.max_depth:
+            return self.dendrites ** self.max_depth
         return temp
     
     # REQUIRES TESTING
@@ -152,21 +146,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 return True
             case _:
                 return False
-    
-    # NOT IMPLEMENTED
-    def rel_pos_split(self, data_dict: DatasetDict):
-        # return True if there is a change of depth determined by relative position
-        raise NotImplementedError
-    
-    # NOT IMPLEMENTED
-    def height_split(self, data_dict: DatasetDict):
-        # return True if there is a change of depth determined by height
-        raise NotImplementedError
-    
-    # NOT IMPLEMENTED
-    def velocity_split(self, data_dict: DatasetDict):
-        # return True if there is a change of depth determined by velocity
-        raise NotImplementedError
     
     def constant_split(self, data_dict: DatasetDict):
         # return True every transition

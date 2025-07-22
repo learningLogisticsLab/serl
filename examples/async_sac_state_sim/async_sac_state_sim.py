@@ -57,6 +57,18 @@ flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
 flags.DEFINE_integer("checkpoint_period", 0, "Period to save checkpoints.")
 flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
 
+# flags for replay buffer
+flags.DEFINE_string("replay_buffer_type", "replay_buffer", "Which type of replay buffer to use")
+flags.DEFINE_string("branch_method", None, "Method for how many branches to generate")
+flags.DEFINE_string("split_method", "test", "Method for when to change number of branches generated") # Remember to default None
+flags.DEFINE_float("workspace_width", 0.5, "Workspace width in centimeters") # Remember to default None
+flags.DEFINE_integer("depth", None, "Total layers of depth")
+flags.DEFINE_integer("dendrites", None, "Dendrites for fractal branching")
+flags.DEFINE_integer("timesplit_freq", None, "Frequency of splits according to time")
+flags.DEFINE_integer("branch_count_rate_of_change", None, "Rate of change for linear branching")
+flags.DEFINE_integer("starting_branch_count", 1, "Initial number of branches")
+
+
 flags.DEFINE_boolean(
     "debug", False, "Debug mode."
 )  # debug mode will disable wandb logging
@@ -289,10 +301,11 @@ def main(_):
             env,
             capacity=FLAGS.replay_buffer_capacity,
             rlds_logger_path=FLAGS.log_rlds_path,
-            type="fractal_symmetry_replay_buffer",
-            branch_method="test",
-            split_method="test",
-            workspace_width=0.5,
+            type=FLAGS.replay_buffer_type,
+            branch_method=FLAGS.branch_method,
+            split_method=FLAGS.split_method,
+            starting_branch_count=FLAGS.starting_branch_count,
+            workspace_width=FLAGS.workspace_width,
             x_obs_idx=np.array([0,4]),
             y_obs_idx=np.array([1,5]),
             preload_rlds_path=FLAGS.preload_rlds_path,
