@@ -92,38 +92,31 @@ class DemoHandling:
                 a_t         = ep_acts[t]
                 r_t         = float(ep_rews[t])
                 done_t      = bool(ep_done[t] or ep_terms[t] or ep_trunc[t])
-
-                raw_info = ep_info[t]
-                if isinstance(raw_info, str):
-                    import ast
-                    info_t = ast.literal_eval(raw_info)
-                else:
-                    info_t = raw_info.copy()
-                info_t["TimeLimit.truncated"] = bool(ep_trunc[t])
+                # masks will be created right before insert below
 
                 self.data_store.insert(
                     dict(
-                        observations=obs_t,
-                        actions=a_t,
+                        observations     =obs_t,
+                        actions          =a_t,
                         next_observations=next_obs_t,
-                        rewards=r_t,
-                        masks=1.0 - done_t,
-                        dones=done_t
+                        rewards          =r_t,
+                        masks            =1.0 - done_t,
+                        dones            =done_t
                     )
                 )
 
         print(f"Loaded {num_demos} episodes from '{self.demo_npz_path}' ")
 
 
-if __name__ == "__main__":
-    # create your datastore; here we use a QueuedDataStore with capacity 2000
-    ds = QueuedDataStore(2000)
-    handler = DemoHandling(ds,
-                           demo_dir='/data/data/serl/demos',
-                           file_name='data_franka_reach_random_20.npz')
+# if __name__ == "__main__":
+#     # create your datastore; here we use a QueuedDataStore with capacity 2000
+#     ds = QueuedDataStore(2000)
+#     handler = DemoHandling(ds,
+#                            demo_dir='/data/data/serl/demos',
+#                            file_name='data_franka_reach_random_20.npz')
     
-    # Idenitfy the total number of transitions in the datastore
-    print(f'We have {handler.transition_ctr} transitions in the datastore.')
+#     # Idenitfy the total number of transitions in the datastore
+#     print(f'We have {handler.data["transition_ctr"]} transitions in the datastore.')
     
-    # Load the demo data into the data_store
-    handler.insert_data_to_buffer()
+#     # Load the demo data into the data_store
+#     handler.insert_data_to_buffer()
