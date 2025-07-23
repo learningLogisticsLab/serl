@@ -13,6 +13,8 @@ The controller uses a 4-phase hierarchical approach:
 4. Maintain Position (hold final position)
 
 Output: Compressed NPZ file containing action, observation, and info sequences
+
+TODO: Convert to a class-based structure for better modularity and reusability.
 """
 import os
 import numpy as np
@@ -32,12 +34,31 @@ truncateds = []     # List storing truncated flags for each episode
 dones = []          # List storing done flags (terminated or truncated) for each episode
 
 # Proportional and derivative control gain for action scaling -- empirically tuned
-Kp = 20.0      # Values between 20 and 24 seem to be somewhat stable for Kv = 24
-Kv = 24.0 
+Kp = 10.0      # Values between 20 and 24 seem to be somewhat stable for Kv = 24
+Kv = 10.0 
+
+# Number of demonstration episodes to generate
+NUM_DEMOS = 20
 
 # Robot configuration
 robot = 'franka'    # Robot type used in the environment, can be 'franka' or 'fetch'
 task  = 'reach'     # Task type used in the environment, can be 'reach' or 'pick-and-place'
+
+DEBUG = False  
+
+if DEBUG:
+    _render_mode = 'human'  # Render mode for the environment, can be 'human' or 'rgb_array'
+else:
+    _render_mode = 'rgb_array'  # Use 'rgb_array' for automated testing without GUI
+
+
+# Indices for franka_sim reach environment observations
+if robot == 'franka' and task == 'reach':
+
+    opi = np.array([0, 3])  # Indices for object position in observation
+    gpi = np.array([3])     # Indices for gripper position in observation
+    rpi = np.array([4, 7])   # Indices for robot position in observation
+    rvi = np.array([7, 10])   # Indices for robot velocity in observation
 
 # Weld constraint flag
 weld_flag = True    # Flag to activate weld constraint during pick-and-place
@@ -81,6 +102,26 @@ weld_flag = True    # Flag to activate weld constraint during pick-and-place
 #         print(f"Warning: Constraint '{constraint_name}' not found")
 #         return False
 
+def set_front_cam_view(env):
+    """
+    Set the camera view to a front-facing perspective for better visualization.
+    
+    Args:
+        env: The environment instance containing the viewer.
+    
+    Returns:
+        viewer: The viewer with updated camera settings.
+    """
+    viewer = env.unwrapped._viewer.viewer  # Access the viewer from the environment
+    
+    if hasattr(viewer, 'cam'):
+        viewer.cam.lookat[:] = [0, 0, 0.1]   # Center of robot (adjust as needed)
+        viewer.cam.distance = 3.0            # Camera distance
+        viewer.cam.azimuth = 180             # 0 = right, 90 = front, 180 = left
+        viewer.cam.elevation = -30           # Negative = above, positive = below
+    
+    return viewer
+
 def store_transition_data(episode_dict, new_obs, rewards, action, info, terminated, truncated, done):
     """
     Store transition data in the episode dictionary.
@@ -123,10 +164,10 @@ def update_state_info(episode_data, time_step, dt, error):
         current_pos (np.ndarray): Current position of the end-effector.
         current_vel (np.ndarray): Current velocity of the end-effector.
     """
-    object_pos  = episode_data["observations"][-1][0:3]   # Block position
-    gripper_pos = episode_data["observations"][-1][3]     # Gripper position
-    current_pos = episode_data["observations"][-1][4:7]   # Panda/tcp position
-    current_vel = episode_data["observations"][-1][7:10]  # Panda/t
+    object_pos  = episode_data["observations"][-1][ opi[0]:opi[1] ]   # Block position
+    gripper_pos = episode_data["observations"][-1][ gpi[0]            ]   # Gripper position
+    current_pos = episode_data["observations"][-1][ rpi[0]:rpi[1]   ]   # Panda/tcp position
+    current_vel = episode_data["observations"][-1][ rvi[0]:rvi[1]   ]  # Panda/t
 
 
     # Print debug information
@@ -216,14 +257,14 @@ def demo(env, lastObs):
     fgr_pos = 0
 
     # Error thresholds
-    error_threshold = 0.04  # Threshold for stopping condition (Xmm)
+    error_threshold = 0.03  # Threshold for stopping condition (Xmm)
 
     finger_delta_fast = 0.05    # Action delta for fingers 5cm per step (will get clipped by controller)... more of a scalar. 
     finger_delta_slow = 0.005   # Franka has a range from 0 to 4cm per finger
 
     ## Extract data   
-    object_pos = lastObs[0:3]  # block pos
-    current_pos = lastObs[4:7] # panda/tcp_pos
+    object_pos = lastObs[opi[0]:opi[1]]  # block pos
+    current_pos = lastObs[rpi[0]:rpi[1]] # panda/tcp_pos
 
     # Relative position between end-effector and object
     dt = env.unwrapped.model.opt.timestep  # Mujoco time step
@@ -274,7 +315,8 @@ def demo(env, lastObs):
         time_step += 1
 
         # Sleep
-        sleep(0.25)  # Optional: Slow down for better visualization        
+        if DEBUG:
+            sleep(0.25)  # Activated when DEBUG is True for better visualization.        
 
     # Store complete episode data in global lists only if we succeeded (avoid bad demos)
     store_episode_data(episode_data)
@@ -282,9 +324,6 @@ def demo(env, lastObs):
     # Deactivate weld constraint after successful pick -- franka_sim env does not have weld like franka_mujoco env.
     # if weld_flag:
     #     deactivate_weld(env, constraint_name="grasp_weld")
-
-    # Close mujoco viewer
-    env.close()
 
     # Break out of the loop to start a new episode
     return True
@@ -305,11 +344,11 @@ def main():
     Arguments that can be configured with flags:
     - env
     - render
-    - num_demos
+    - demo_ctr
 
     """
     # Initialize the Panda environment.
-    env = gym.make("PandaReachCube-v0", render_mode="human")
+    env = gym.make("PandaReachCube-v0", render_mode=_render_mode)
     env = gym.wrappers.FlattenObservation(env) 
 
     # Adjust physical settings
@@ -320,28 +359,23 @@ def main():
     initStateSpace = "random"       # Initial state space configuration
 
     # Demos configs
-    attempted_demos = 1  # Number of demonstration episodes to generate--ADJUST THIS VALUE FOR MORE OR LESS DEMOS**  
+    num_demos = NUM_DEMOS  # Number of demonstration episodes to generate--ADJUST THIS VALUE FOR MORE OR LESS DEMOS**  
 
-    num_demos = 0         # Counter for successful demonstration episodes 
+    demo_ctr = 0         # Counter for successful demonstration episodes 
     
     # Reset environment to initial state - render for the first time.
     obs, _ = env.reset() # For reach environment expect 10 observations: r_pos, r_vel, finger, object_pos.
 
     # Adjust camera view for better visualization
-    viewer = env.unwrapped._viewer.viewer
-    if hasattr(viewer, 'cam'):
-        viewer.cam.lookat[:] = [0, 0, 0.1]   # Center of robot (adjust as needed)
-        viewer.cam.distance = 3.0            # Camera distance
-        viewer.cam.azimuth = 180             # 0 = right, 90 = front, 180 = left
-        viewer.cam.elevation = -30           # Negative = above, positive = below
+    viewer = set_front_cam_view(env)
 
     print("Reset!")
     
     # Generate demonstration episodes
-    while len(actions) < attempted_demos:
+    while len(actions) < num_demos:
         obs,_ = env.reset() # Reset environment for new episode
         
-        print(f"We will run a total of: {attempted_demos} demos!!")
+        print(f"We will run a total of: {num_demos} demos!!")
         print("Demo: #", len(actions)+1)
 
         # Execute pick-and-place task
@@ -349,9 +383,12 @@ def main():
 
         # Print success message
         if res:                        
-            num_demos += 1
+            demo_ctr += 1
             print("Episode completed successfully!")
-            print(f"Total successful demos: {num_demos}/{attempted_demos}")
+            print(f"Total successful demos: {demo_ctr}/{num_demos}")
+
+    # Close the environment after all episodes are done
+    env.close()
     
     ## Write data to demos folder. Assumes mounted /data folder and internal data folder.
     script_dir = '/data/data/serl/demos'    
@@ -359,7 +396,7 @@ def main():
     # Create output filename with configuration details
     fileName = "data_" + robot + "_" + task
     fileName += "_" + initStateSpace
-    fileName += "_" + str(attempted_demos)
+    fileName += "_" + str(num_demos)
     fileName += ".npz"
 
     # Build a filename in that same directory
@@ -380,7 +417,7 @@ def main():
                         dones = dones)
     
     print(f"Data saved to {fileName}.")
-    print(f"Total successful demos: {num_demos}/{attempted_demos}")
+    print(f"Total successful demos: {demo_ctr}/{num_demos}")
 
 if __name__ == "__main__":
     main()
