@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import numpy as np
 
-def load_demos_to_her_buffer_gymnasium(demo_npz_path: str, combine_done: bool = True):
+def load_demos_to_her_buffer_gymnasium(data_store, demo_npz_path: str, combine_done: bool = True):
     """
     Load a raw Gymnasium-style .npz of expert episodes into model.replay_buffer.
 
@@ -17,8 +17,8 @@ def load_demos_to_her_buffer_gymnasium(demo_npz_path: str, combine_done: bool = 
 
     Parameters
     ----------
-    model : SAC
-        Your SAC+HER model, already instantiated (and with the correct HerReplayBuffer).
+    data_store : DataStore
+        The data store to which the demo transitions will be added.
     demo_npz_path : str
         Path to the .npz file you saved from your demo collector.
     combine_done : bool, default=True
@@ -71,22 +71,17 @@ def load_demos_to_her_buffer_gymnasium(demo_npz_path: str, combine_done: bool = 
             # Append truncated information to info_t
             info_t["TimeLimit.truncated"] = bool(ep_trunc[t])                      
 
-            # **Add the required batch‐dimension** for n_envs=1 (necessary for defualt DummyVecEnv)
-            # obs_batch      = {k: v[None, ...] for k, v in obs_t.items()}
-            # next_obs_batch = {k: v[None, ...] for k, v in next_obs_t.items()}
-            # action_batch   = a_t[None, ...]            # shape (1, action_dim)
-            # reward_batch   = np.array([r_t])           # shape (1,)
-            # done_batch     = np.array([done_t])        # shape (1,)
-            # infos_batch    = [info_t]                  # length‐1 list
 
-            # model.replay_buffer.add(
-            #     obs      = obs_batch,
-            #     next_obs = next_obs_batch,
-            #     action   = action_batch,
-            #     reward   = reward_batch,
-            #     done     = done_batch,
-            #     infos    = infos_batch,
-            #     )
+            data_store.insert(
+                            dict(
+                                observations=obs_t,
+                                actions=a_t,
+                                next_observations=next_obs_t,
+                                rewards=r_t,
+                                masks=1.0 - done_t,
+                                dones=done_t
+                            )
+                        )            
 
     print(f"Can load {num_demos} transitions successfullly from {demo_npz_path}."
           f"(combine_done={combine_done}).")
@@ -124,7 +119,9 @@ def main():
     demo_file = os.path.join(script_dir, file_name)
 
     # Load the demo file into the HER buffer: mutated model.replay_buffer will persist. 
-    load_demos_to_her_buffer_gymnasium(demo_file, combine_done=True)
+    from agentlace.data.data_store import QueuedDataStore
+    data_store = QueuedDataStore(2000) 
+    load_demos_to_her_buffer_gymnasium(data_store, demo_file, combine_done=True)
 
 if __name__ == "__main__":
     main()
