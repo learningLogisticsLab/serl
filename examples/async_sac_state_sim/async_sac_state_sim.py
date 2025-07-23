@@ -27,6 +27,8 @@ from serl_launcher.utils.timer_utils import Timer
 
 import franka_sim
 
+from demos.demoHandling import DemoHandling
+
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("env", "HalfCheetah-v4", "Name of environment.")
@@ -64,6 +66,11 @@ flags.DEFINE_boolean(
 flags.DEFINE_string("log_rlds_path", None, "Path to save RLDS logs.")
 flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 
+
+# Load demonstation data
+flags.DEFINE_boolean("load_demos", False, "Whether to load demo dataset.")
+flags.DEFINE_string("demo_dir", "/data/data/serl/demos", "Path to demo dataset.")
+flags.DEFINE_string("file_name", "data_franka_reach_random_20.npz", "Name of the demo file to load.")
 
 def print_green(x):
     return print("\033[92m {}\033[00m".format(x))
@@ -105,42 +112,56 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
     for step in tqdm.tqdm(range(FLAGS.max_steps), dynamic_ncols=True):
         timer.tick("total")
 
-        with timer.context("sample_actions"):
-            if step < FLAGS.random_steps:
-                actions = env.action_space.sample()
-            else:
-                sampling_rng, key = jax.random.split(sampling_rng)
-                actions = agent.sample_actions(
-                    observations=jax.device_put(obs),
-                    seed=key,
-                    deterministic=False,
+        # Load demos: handler.run will insert all transition demo data into the data store.
+        if FLAGS.load_demos:
+            with timer.context("sample and step into env"):
+
+                # handler loads data
+                handler = DemoHandling(data_store, 
+                                       demo_dir=FLAGS.demo_dir,
+                                       file_name=FLAGS.demo_dir)
+                
+                # Insert complete demonstration into the data store 
+                print(f"Inserting {handler.data["transition_ctr"]} transitions into the data store.")
+                handler.insert_data_to_buffer()
+
+        else:
+            with timer.context("sample_actions"):
+                if step < FLAGS.random_steps:
+                    actions = env.action_space.sample()
+                else:
+                    sampling_rng, key = jax.random.split(sampling_rng)
+                    actions = agent.sample_actions(
+                        observations=jax.device_put(obs),
+                        seed=key,
+                        deterministic=False,
+                    )
+                    actions = np.asarray(jax.device_get(actions))
+
+            # Step environment
+            with timer.context("step_env"):
+
+                next_obs, reward, done, truncated, info = env.step(actions)
+                next_obs = np.asarray(next_obs, dtype=np.float32)
+                reward = np.asarray(reward, dtype=np.float32)
+
+                running_return += reward
+
+                data_store.insert(
+                    dict(
+                        observations=obs,
+                        actions=actions,
+                        next_observations=next_obs,
+                        rewards=reward,
+                        masks=1.0 - done,
+                        dones=done or truncated,
+                    )
                 )
-                actions = np.asarray(jax.device_get(actions))
 
-        # Step environment
-        with timer.context("step_env"):
-
-            next_obs, reward, done, truncated, info = env.step(actions)
-            next_obs = np.asarray(next_obs, dtype=np.float32)
-            reward = np.asarray(reward, dtype=np.float32)
-
-            running_return += reward
-
-            data_store.insert(
-                dict(
-                    observations=obs,
-                    actions=actions,
-                    next_observations=next_obs,
-                    rewards=reward,
-                    masks=1.0 - done,
-                    dones=done or truncated,
-                )
-            )
-
-            obs = next_obs
-            if done or truncated:
-                running_return = 0.0
-                obs, _ = env.reset()
+                obs = next_obs
+                if done or truncated:
+                    running_return = 0.0
+                    obs, _ = env.reset()
 
         if FLAGS.render:
             env.render()

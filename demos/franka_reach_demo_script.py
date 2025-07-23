@@ -32,6 +32,7 @@ infos = []          # List storing info dictionaries for each episode
 terminateds = []    # List storing terminated flags for each episode
 truncateds = []     # List storing truncated flags for each episode
 dones = []          # List storing done flags (terminated or truncated) for each episode
+transition_ctr = 0  # Global counter for transitions across all episodes
 
 # Proportional and derivative control gain for action scaling -- empirically tuned
 Kp = 10.0      # Values between 20 and 24 seem to be somewhat stable for Kv = 24
@@ -124,8 +125,11 @@ def set_front_cam_view(env):
 
 def store_transition_data(episode_dict, new_obs, rewards, action, info, terminated, truncated, done):
     """
-    Store transition data in the episode dictionary.
+    Store transition data in the episode dictionary and update global counter.
     """
+    global transition_ctr
+    transition_ctr += 1
+    
     episode_dict["observations"].append(new_obs)
     episode_dict["rewards"].append(rewards)
     episode_dict["actions"].append(action)
@@ -414,7 +418,8 @@ def main():
                         info = infos,
                         terminateds = terminateds,
                         truncateds = truncateds,
-                        dones = dones)
+                        dones = dones,
+                        transition_ctr = transition_ctr)
     
     print(f"Data saved to {fileName}.")
     print(f"Total successful demos: {demo_ctr}/{num_demos}")

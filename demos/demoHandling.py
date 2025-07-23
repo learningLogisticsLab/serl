@@ -5,13 +5,33 @@ from agentlace.data.data_store import QueuedDataStore
 
 class DemoHandling:
     """
-    Encapsulates loading of Gymnasium-style demo .npz files
-    into a DataStore (e.g., QueuedDataStore) for use with HER/RL agents.
+    Koads an .npz file containing demonstration data into a data object.
+    This class is designed to work with Gymnasium-style demonstration data
+    and is intended to be used with a QueuedDataStore or similar data store.
+
+    The .npz file should contain the following arrays:
+      - 'obs'            : shape (N, T+1, *obs_shape*), list of observations
+      - 'acs'            : shape (N, T, *act_shape*),   list of actions
+      - 'rewards'        : shape (N, T),                list of rewards
+      - 'terminateds'    : shape (N, T),                list of terminated flags
+      - 'truncateds'     : shape (N, T),                list of truncated flags
+      - 'info'          : shape (N,  T),                list of info dicts
+      - 'dones'         : shape (N,  T),                list of done flags (if available)
+
+    Parameters
+    ----------
+    data_store : QueuedDataStore
+        The data store to which the demo transitions will be added.
+    demo_dir : str
+        Directory where demo .npz files live by default.
+    file_name : str
+        Name of the demo file to load. If not provided, a default will be used.
     """
     def __init__(
         self,
         data_store: QueuedDataStore,
-        demo_dir: str = '/data/data/serl/demos'
+        demo_dir: str = '/data/data/serl/demos',
+        file_name: str = 'data_franka_reach_random_20.npz'
     ):
         """
         Parameters
@@ -23,30 +43,36 @@ class DemoHandling:
         """
         self.data_store = data_store
         self.demo_dir = demo_dir
+        self.transition_ctr = 0  # Global counter for transitions across all episodes
 
-    @staticmethod
-    def load_demos_to_her_buffer_gymnasium(
-        data_store,
-        demo_npz_path: str,
-        combine_done: bool = True
-    ):
+        # Load the demo data from the .npz file 
+
+        # Check if the demo directory exists
+        if not os.path.exists(self.demo_dir):
+            raise FileNotFoundError(f"Demo directory '{self.demo_dir}' does not exist.")
+        
+        # Construct the full path to the demo file
+        self.demo_npz_path = os.path.join(self.demo_dir, file_name)
+        if not os.path.isfile(self.demo_npz_path):
+            raise FileNotFoundError(f"Demo file '{self.demo_npz_path}' does not exist.")
+        
+        # Load the .npz file
+        self.data = np.load(self.demo_npz_path, allow_pickle=True)
+
+    def insert_data_to_buffer(self): 
         """
         Load a raw Gymnasium-style .npz of expert episodes into data_store.
-
-        demo_npz_path must contain arrays named 'obs', 'acs', 'rewards',
+        The .npz file must contain arrays named 'obs', 'acs', 'rewards',
         'terminateds', 'truncateds', 'info', and optionally 'dones'.
-
-        If combine_done=True, done = terminated OR truncated OR done_buffer.
         """
-        data = np.load(demo_npz_path, allow_pickle=True)
-
-        obs_buffer   = data['obs']         # shape (N, T+1, ...)
-        act_buffer   = data['acs']         # shape (N, T,   ...)
-        rew_buffer   = data['rewards']     # shape (N, T)
-        term_buffer  = data['terminateds'] # shape (N, T)
-        trunc_buffer = data['truncateds']  # shape (N, T)
-        info_buffer  = data['info']        # shape (N, T)
-        done_buffer  = data.get('dones', term_buffer | trunc_buffer)
+        
+        obs_buffer   = self.data['obs']         # shape (N, T+1, ...)
+        act_buffer   = self.data['acs']         # shape (N, T,   ...)
+        rew_buffer   = self.data['rewards']     # shape (N, T)
+        term_buffer  = self.data['terminateds'] # shape (N, T)
+        trunc_buffer = self.data['truncateds']  # shape (N, T)
+        info_buffer  = self.data['info']        # shape (N, T)
+        done_buffer  = self.data.get('dones', term_buffer | trunc_buffer)
 
         num_demos = obs_buffer.shape[0]
 
@@ -75,7 +101,7 @@ class DemoHandling:
                     info_t = raw_info.copy()
                 info_t["TimeLimit.truncated"] = bool(ep_trunc[t])
 
-                data_store.insert(
+                self.data_store.insert(
                     dict(
                         observations=obs_t,
                         actions=a_t,
@@ -86,36 +112,18 @@ class DemoHandling:
                     )
                 )
 
-        print(f"Loaded {num_demos} episodes from '{demo_npz_path}' "
-              f"(combine_done={combine_done}).")
-
-    @staticmethod
-    def get_demo_path(relative_path: str) -> str:
-        """
-        Resolve a path relative to this file's location.
-        """
-        script_dir = Path(__file__).resolve().parent
-        return str((script_dir / relative_path).resolve())
+        print(f"Loaded {num_demos} episodes from '{self.demo_npz_path}' ")
 
 
-    def run(self, default_file: str = 'data_franka_reach_random_20.npz'):
-        """
-        Prompt for a file name (with a sensible default), then load it.
-        """
-        prompt = f"Please input the name of the file to load [{default_file}]: "
-        
-        file_name = input(prompt).strip() or default_file
-        demo_file = os.path.join(self.demo_dir, file_name)
-
-        self.load_demos_to_her_buffer_gymnasium(
-            self.data_store,
-            demo_file,
-            combine_done=True # dones are truncated or terminated in this case.
-        )
-
-
-# if __name__ == "__main__":
-#     # create your datastore; here we use a QueuedDataStore with capacity 2000
-#     ds = QueuedDataStore(2000)
-#     handler = DemoHandling(ds)
-#     handler.run()
+if __name__ == "__main__":
+    # create your datastore; here we use a QueuedDataStore with capacity 2000
+    ds = QueuedDataStore(2000)
+    handler = DemoHandling(ds,
+                           demo_dir='/data/data/serl/demos',
+                           file_name='data_franka_reach_random_20.npz')
+    
+    # Idenitfy the total number of transitions in the datastore
+    print(f'We have {handler.transition_ctr} transitions in the datastore.')
+    
+    # Load the demo data into the data_store
+    handler.insert_data_to_buffer()
