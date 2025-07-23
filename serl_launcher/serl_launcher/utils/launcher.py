@@ -19,6 +19,7 @@ from serl_launcher.data.data_store import (
     MemoryEfficientReplayBufferDataStore,
     ReplayBufferDataStore,
     FractalSymmetryReplayBufferDataStore,
+    KerReplayBufferDataStore
 )
 
 ##############################################################################
@@ -210,6 +211,7 @@ def make_replay_buffer(
     branch_method: str = None, # used only type=="fractal_symmetry_replay_buffer"
     split_method : str = None, # used only type=="fractal_symmetry_replay_buffer"
     workspace_width : float = None, # used only type=="fractal_symmetry_replay_buffer"
+    n_KER: int = None,
     
     **kwargs: dict # used only type=="fractal_symmetry_replay_buffer"
 ):
@@ -268,6 +270,15 @@ def make_replay_buffer(
             branch_method=branch_method,
             split_method=split_method,
             workspace_width=workspace_width,
+            rlds_logger=rlds_logger,
+            kwargs=kwargs,
+        )
+    elif type == "ker_replay_buffer":  ### Copy of fractal_symmetry block above wth naming changes + deleting fractal specific code
+        replay_buffer = KerReplayBufferDataStore(
+            env.observation_space,
+            env.action_space,
+            capacity=capacity,
+            n_KER=n_KER,
             rlds_logger=rlds_logger,
             kwargs=kwargs,
         )

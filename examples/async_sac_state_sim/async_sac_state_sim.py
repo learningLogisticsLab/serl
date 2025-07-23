@@ -64,6 +64,8 @@ flags.DEFINE_boolean(
 flags.DEFINE_string("log_rlds_path", None, "Path to save RLDS logs.")
 flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 
+flags.DEFINE_enum("symmetry", "fractal", ["fractal", "reflection"], "Symmetry type for transformations")
+
 
 def print_green(x):
     return print("\033[92m {}\033[00m".format(x))
@@ -283,19 +285,30 @@ def main(_):
     )
 
     if FLAGS.learner:
+            
         sampling_rng = jax.device_put(sampling_rng, device=sharding.replicate())
-        replay_buffer = make_replay_buffer(
-            env,
-            capacity=FLAGS.replay_buffer_capacity,
-            rlds_logger_path=FLAGS.log_rlds_path,
-            type="fractal_symmetry_replay_buffer",
-            branch_method="test",
-            split_method="test",
-            workspace_width=0.5,
-            x_obs_idx=np.array([0,7]),
-            y_obs_idx=np.array([1,8]),
-            preload_rlds_path=FLAGS.preload_rlds_path,
-        )
+        if FLAGS.symmetry == "fractal":
+            replay_buffer = make_replay_buffer(
+                env,
+                capacity=FLAGS.replay_buffer_capacity,
+                rlds_logger_path=FLAGS.log_rlds_path,
+                type="fractal_symmetry_replay_buffer",
+                branch_method="test",
+                split_method="test",
+                workspace_width=0.5,
+                x_obs_idx=np.array([0,7]),
+                y_obs_idx=np.array([1,8]),
+                preload_rlds_path=FLAGS.preload_rlds_path,
+            )
+        elif FLAGS.symmetry == "reflection":
+            replay_buffer = make_replay_buffer(
+                env,
+                capacity=FLAGS.replay_buffer_capacity,
+                rlds_logger_path=FLAGS.log_rlds_path,
+                type="ker_replay_buffer",
+                preload_rlds_path=FLAGS.preload_rlds_path,
+                n_KER=4
+            )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={
                 "batch_size": FLAGS.batch_size * FLAGS.critic_actor_ratio,

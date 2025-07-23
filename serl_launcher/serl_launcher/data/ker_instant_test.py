@@ -41,7 +41,7 @@ def tester(coord: np.array, thetas):
 def main(_):
 
     # Initialize replay buffer
-    env = gym.make("PandaPickCube-v0")
+    env = gym.make("PandaReachCube-v0")
     env = gym.wrappers.FlattenObservation(env)
     observation_space=env.observation_space
     action_space=env.action_space
@@ -50,11 +50,9 @@ def main(_):
     print(action_space)
 
     buffer = KerReplayBuffer(
-        env_name="PandaPickCube-v0",
         observation_space=observation_space,
         action_space=action_space,
         capacity=CAPACITY,
-        workspace_width=WORKSPACE_WIDTH,
         n_KER=4,
         max_z_theta=MAX_Z_THETA,
         z_theta_list=THETA_LIST
@@ -63,11 +61,11 @@ def main(_):
     observation, info = env.reset()
     action = env.action_space.sample()
     next_observation, reward, terminated, truncated, info = env.step(action)
-   
+
     generated_dict = dict(
         observations=np.float32([1, 1, 1, 0.1, 0.05, 0.0, 0.02, 0.45, 0.35, 0.15]),
         next_observations=np.float32([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.4, 0.2, 0.0]),
-        actions=np.float32([0.1, 0.1, 0.1, 0.0]),
+        actions=np.float32(np.empty_like(action)),
         rewards=reward,
         masks=False,
         dones=truncated or terminated,
