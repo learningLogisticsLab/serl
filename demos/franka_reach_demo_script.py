@@ -126,6 +126,9 @@ def set_front_cam_view(env):
         viewer.cam.distance = 3.0            # Camera distance
         viewer.cam.azimuth = 135             # 0 = right, 90 = front, 180 = left
         viewer.cam.elevation = -30           # Negative = above, positive = below
+
+        # Hide menu
+        viewer._hide_overlay = True
     
     return viewer
 
