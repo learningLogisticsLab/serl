@@ -20,6 +20,11 @@
                 "--critic_actor_ratio", "8",          // Critic-to-actor update ratio
                 "--batch_size", "256",                // Training batch size
                 "--replay_buffer_capacity", "100000", // Replay buffer capacity
+
+                // Demonstration data loading options
+                "--load_demos",                          // Load demo dataset
+                "--demo_dir",  "/data/data/serl/demos/data_franka_reach_random",
+                "--file_name", "data_franka_reach_random_20.npz" // Name of the demo file to load
             ],
             "console": "integratedTerminal",          // Use integrated terminal to see output
             "justMyCode": false,                      // Allow stepping into libraries
