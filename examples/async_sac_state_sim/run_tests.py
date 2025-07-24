@@ -39,8 +39,8 @@ def main(_):
             "save_model": save_model,
         }
 
-    subprocess.Popen(['tmux', 'new-session', '-d', '-s', 'serl_session'], shell=True)
-    time.sleep(10)
+    subprocess.run(['tmux', 'new-session', '-d', '-s', 'serl_session'])
+    # time.sleep(10)
     subprocess.run("tmux split-window -v", shell=True)
 
     # baseline
@@ -49,11 +49,11 @@ def main(_):
     for seed in range(0, 5):
         rb_args["seed"] = seed
         rb_args["max_steps"] = max_steps_actor
-        actor_process = subprocess.Popen(f"tmux send-keys -t serl_session:0.0 \"conda activate serl && {actor(kwargs=rb_args)}\" C-m", shell=True)
+        actor_process = subprocess.Popen(f"tmux send-keys -t serl_session:0.0 \"conda run -vvv -n serl {actor(kwargs=rb_args)}\" C-m", shell=True)
 
 
         rb_args["max_steps"] = max_steps_learner
-        learner_process = subprocess.Popen(f"tmux send-keys -t serl_session:0.1 \"conda activate serl && {learner(kwargs=rb_args)}\" C-m", shell=True)
+        learner_process = subprocess.Popen(f"tmux send-keys -t serl_session:0.1 \"conda run -vvv -n serl '{learner(kwargs=rb_args)}'\" C-m", shell=True)
         subprocess.run("tmux attach-session -t serl_session", shell=True)
 
         learner_process.wait()
