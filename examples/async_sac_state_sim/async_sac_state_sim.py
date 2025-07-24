@@ -79,7 +79,7 @@ def print_green(x):
 ##############################################################################
 
 
-def actor(agent: SACAgent, data_store, env, sampling_rng):
+def actor(agent: SACAgent, data_store, env, sampling_rng, demos_handler=None):
     """
     This is the actor loop, which runs when "--actor" is set to True.
     """
@@ -114,16 +114,11 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
 
         # Load demos: handler.run will insert all transition demo data into the data store.
         if FLAGS.load_demos:
-            with timer.context("sample and step into env"):
-
-                # handler loads data
-                handler = DemoHandling(data_store, 
-                                       demo_dir=FLAGS.demo_dir,
-                                       file_name=FLAGS.demo_dir)
-                
+            with timer.context("sample and step into env with loaded demos"):
+              
                 # Insert complete demonstration into the data store 
-                print(f"Inserting {handler.data["transition_ctr"]} transitions into the data store.")
-                handler.insert_data_to_buffer()
+                print(f"Inserting {demos_handler.data["transition_ctr"]} transitions into the data store.")
+                demos_handler.insert_data_to_buffer(data_store)
 
         else:
             with timer.context("sample_actions"):
@@ -303,6 +298,24 @@ def main(_):
         jax.tree.map(jnp.array, agent), sharding.replicate()
     )
 
+    # Demo Data
+    if FLAGS.load_demos:
+        print_green("loading demo data")
+        # Create a handler for the demo data
+        demos_handler = DemoHandling(
+            demo_dir=FLAGS.demo_dir,
+            file_name=FLAGS.file_name,
+        )
+
+        # 1. Modify actor data_store size
+        # Extract number of demo transitions
+        demo_transitions = demos_handler.get_num_transitions()
+        qds_size = demo_transitions + 1000  # the queue size on the actor
+
+        # 2. Modify training starts (since we have good data)
+        FLAGS.training_starts = 0
+
+
     if FLAGS.learner:
         sampling_rng = jax.device_put(sampling_rng, device=sharding.replicate())
         replay_buffer = make_replay_buffer(
@@ -334,11 +347,20 @@ def main(_):
 
     elif FLAGS.actor:
         sampling_rng = jax.device_put(sampling_rng, sharding.replicate())
-        data_store = QueuedDataStore(2000)  # the queue size on the actor
+
+        if FLAGS.load_demos:
+            print_green("loading demo data")            
+
+            # Create a data store for the actor
+            data_store = QueuedDataStore(qds_size)  # the queue size on the actor
+        else:
+            print_green("no demo data, using empty data store")
+            # Create a data store for the actor
+            data_store = QueuedDataStore(2000)  # the queue size on the actor
 
         # actor loop
         print_green("starting actor loop")
-        actor(agent, data_store, env, sampling_rng)
+        actor(agent, data_store, env, sampling_rng,demos_handler)
 
     else:
         raise NotImplementedError("Must be either a learner or an actor")

@@ -20,8 +20,6 @@ class DemoHandling:
 
     Parameters
     ----------
-    data_store : QueuedDataStore
-        The data store to which the demo transitions will be added.
     demo_dir : str
         Directory where demo .npz files live by default.
     file_name : str
@@ -29,19 +27,11 @@ class DemoHandling:
     """
     def __init__(
         self,
-        data_store: QueuedDataStore,
         demo_dir: str = '/data/data/serl/demos',
         file_name: str = 'data_franka_reach_random_20.npz'
     ):
-        """
-        Parameters
-        ----------
-        data_store : QueuedDataStore
-            The replay buffer or datastore to insert transitions into.
-        demo_dir : str
-            Directory where demo .npz files live by default.
-        """
-        self.data_store = data_store
+
+        self.debug = False  # Set to True for debugging purposes
         self.demo_dir = demo_dir
         self.transition_ctr = 0  # Global counter for transitions across all episodes
 
@@ -59,7 +49,13 @@ class DemoHandling:
         # Load the .npz file
         self.data = np.load(self.demo_npz_path, allow_pickle=True)
 
-    def insert_data_to_buffer(self): 
+    def get_num_transitions(self):
+        """
+        Returns the total number of transitions counted in the demo data.
+        """
+        return self.data["transition_ctr"] if "transition_ctr" in self.data else 0
+
+    def insert_data_to_buffer(self,data_store: QueuedDataStore): 
         """
         Load a raw Gymnasium-style .npz of expert episodes into data_store.
         The .npz file must contain arrays named 'obs', 'acs', 'rewards',
@@ -94,7 +90,10 @@ class DemoHandling:
                 done_t      = bool(ep_done[t] or ep_terms[t] or ep_trunc[t])
                 # masks will be created right before insert below
 
-                self.data_store.insert(
+                if self.debug:
+                    print(f"Demo {ep}, Step {t}: Obs={obs_t}, Action={a_t}, Reward={r_t}, Done={done_t}")
+
+                data_store.insert(
                     dict(
                         observations     =obs_t,
                         actions          =a_t,

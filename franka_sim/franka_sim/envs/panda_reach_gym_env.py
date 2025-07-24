@@ -217,7 +217,7 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
         rew = self._compute_reward()
 
         # For reach environment, finger 
-        if rew >= 0.55:
+        if rew >= 0.82: # Demo ERROR_THRESHOLD @ 0.3->0.675; ERROR_THRESHOLD @ 0.2->0.55
             terminated = True
         else:
             # Check if the time limit is exceeded.

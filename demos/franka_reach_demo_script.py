@@ -34,9 +34,15 @@ truncateds = []     # List storing truncated flags for each episode
 dones = []          # List storing done flags (terminated or truncated) for each episode
 transition_ctr = 0  # Global counter for transitions across all episodes
 
+#-------------------------------------------------------------------------------------------
+## Key Config Variables
+#-------------------------------------------------------------------------------------------
 # Proportional and derivative control gain for action scaling -- empirically tuned
 Kp = 10.0      # Values between 20 and 24 seem to be somewhat stable for Kv = 24
 Kv = 10.0 
+
+ACTION_MAX = 10 # Maximum action value for clipping actions
+ERROR_THRESHOLD = 0.01 # Note!! When this number is changed, the way rewards are computed in the PandaReachCubeEnv.step() L220 must also be changed such that done=True only at the end of a successfull run.
 
 # Number of demonstration episodes to generate
 NUM_DEMOS = 20
@@ -45,13 +51,13 @@ NUM_DEMOS = 20
 robot = 'franka'    # Robot type used in the environment, can be 'franka' or 'fetch'
 task  = 'reach'     # Task type used in the environment, can be 'reach' or 'pick-and-place'
 
-DEBUG = False  
+# Debug mode for rendering and visualization
+DEBUG = True  
 
 if DEBUG:
     _render_mode = 'human'  # Render mode for the environment, can be 'human' or 'rgb_array'
 else:
     _render_mode = 'rgb_array'  # Use 'rgb_array' for automated testing without GUI
-
 
 # Indices for franka_sim reach environment observations
 if robot == 'franka' and task == 'reach':
@@ -64,7 +70,7 @@ if robot == 'franka' and task == 'reach':
 # Weld constraint flag
 weld_flag = True    # Flag to activate weld constraint during pick-and-place
 
-
+#-------------------------------------------------------------------------------------------
 # Franka sim environments do not have weld constraints like the franka_mujoco environments.
 # def activate_weld(env, constraint_name="grasp_weld"):
 #     """
@@ -118,7 +124,7 @@ def set_front_cam_view(env):
     if hasattr(viewer, 'cam'):
         viewer.cam.lookat[:] = [0, 0, 0.1]   # Center of robot (adjust as needed)
         viewer.cam.distance = 3.0            # Camera distance
-        viewer.cam.azimuth = 180             # 0 = right, 90 = front, 180 = left
+        viewer.cam.azimuth = 135             # 0 = right, 90 = front, 180 = left
         viewer.cam.elevation = -30           # Negative = above, positive = below
     
     return viewer
@@ -261,7 +267,7 @@ def demo(env, lastObs):
     fgr_pos = 0
 
     # Error thresholds
-    error_threshold = 0.03  # Threshold for stopping condition (Xmm)
+    error_threshold = ERROR_THRESHOLD  # Threshold for stopping condition (Xmm)
 
     finger_delta_fast = 0.05    # Action delta for fingers 5cm per step (will get clipped by controller)... more of a scalar. 
     finger_delta_slow = 0.005   # Franka has a range from 0 to 4cm per finger
@@ -299,6 +305,9 @@ def demo(env, lastObs):
         action[:3] = error * Kp + derror * Kv
         prev_error = error.copy()  # Update previous error for next iteration
         
+        # Clip action to prevent excessive movements
+        action = np.clip(action/ACTION_MAX, -0.1, 0.1)  #
+
         # Keep gripper closed -- no need. only 3 dimensions of control
         #action[ len(action)-1 ] = -finger_delta_fast # Maintain gripper closed.
         
@@ -419,7 +428,9 @@ def main():
                         terminateds = terminateds,
                         truncateds = truncateds,
                         dones = dones,
-                        transition_ctr = transition_ctr)
+                        transition_ctr = transition_ctr,
+                        num_demos = num_demos
+                        )
     
     print(f"Data saved to {fileName}.")
     print(f"Total successful demos: {demo_ctr}/{num_demos}")
