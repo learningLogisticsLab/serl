@@ -10,19 +10,17 @@ import franka_sim
 FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("capacity", 10000000, "Replay buffer capacity.")
-flags.DEFINE_string("branch_method", "test", "placeholder")
-flags.DEFINE_string("split_method", "test", "placeholder")
-flags.DEFINE_float("workspace_width", 0.5, "workspace width in centimeters")
-flags.DEFINE_integer("depth", 4, "Total layers of depth")
-flags.DEFINE_integer("dendrites", 3, "Dendrites for fractal branching") # Remember to set default to None
-flags.DEFINE_integer("timesplit_freq", None, "Frequency of splits according to time")
-flags.DEFINE_integer("branch_count_rate_of_change", None, "Rate of change for linear branching")
-flags.DEFINE_integer("starting_branch_count", 1, "Initial number of branches(sort of, TBD)")
+flags.DEFINE_string("branch_method", "test", "Method for determining the number of transforms per dimension (x,y)")
+flags.DEFINE_string("split_method", "test", "Method for determining whether to change the number of transforms per dimension (x,y)")
+flags.DEFINE_float("workspace_width", 0.5, "workspace width in meters")
+flags.DEFINE_integer("max_depth", 4, "Maximum level of depth") # For fractal_branch only
+flags.DEFINE_integer("branching_factor", 3, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch only
+flags.DEFINE_integer("starting_branch_count", 1, "Initial number of transforms per dimension (x,y)") # For constant_branch only
 
 def main(_):
 
-    x_obs_idx = np.array([0, 7])
-    y_obs_idx = np.array([1, 8])
+    x_obs_idx = np.array([0, 4])
+    y_obs_idx = np.array([1, 5])
 
     # Initialize replay buffer
     env = gym.make("PandaReachCube-v0")
@@ -37,11 +35,8 @@ def main(_):
         workspace_width=FLAGS.workspace_width,
         x_obs_idx=x_obs_idx,
         y_obs_idx= y_obs_idx,
-        depth=FLAGS.depth,
-        dendrites=FLAGS.dendrites,
-        timesplit_freq=FLAGS.timesplit_freq,
-        branch_count_rate_of_change=FLAGS.branch_count_rate_of_change,
-        starting_branch_count=FLAGS.starting_branch_count,
+        max_depth=FLAGS.max_depth,
+        branching_factor=FLAGS.branching_factor,
     )
 
     observation, info = env.reset()
@@ -52,11 +47,11 @@ def main(_):
         next_observations=next_observation,
         actions=action,
         rewards=reward,
-        masks=False,
+        masks=not truncated and not terminated,
         dones=truncated or terminated,
     )
 
-    del env, observation, next_observation, action, reward, truncated, terminated, info, _
+    del env, observation, next_observation, action, reward, truncated, terminated, info, y_obs_idx, x_obs_idx, _
 
     # transform() test
 
@@ -67,102 +62,75 @@ def main(_):
 
     del result, expected
     
-    print("\n\033[32mTEST PASSED \033[0m transform() tests passed")
+    print("\n\033[32mTEST PASSED \033[0m transform() test passed")
+
     # branch() tests
 
     ## fractal
 
-    # for dendrites in range(1, 10, 2):
-    #     replay_buffer.dendrites=dendrites
-    #     for depth in range(1, 6):
-    #         replay_buffer.current_depth=depth - 1
-    #         result = replay_buffer.fractal_branch()
-    #         expected = dendrites ** depth
-    #         assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    replay_buffer.branching_factor = 3
+
+    replay_buffer.current_depth = 1
+    result = replay_buffer.fractal_branch()
+    expected = 3
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
     
-    # del dendrites, depth, result, expected
+    replay_buffer.current_depth = 2
+    result = replay_buffer.fractal_branch()
+    expected = 9
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 3
+    result = replay_buffer.fractal_branch()
+    expected = 27
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 4
+    result = replay_buffer.fractal_branch()
+    expected = 81
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 0
 
-    ## constant
+    del result, expected
 
-    ## linear
-
-    ## exponential
-
-    print("\033[32mTEST PASSED \033[0m _branch() tests passed")
+    print("\033[32mTEST PASSED \033[0m fractal_branch() tests passed")
 
     # split() tests
-
     ## time
+    replay_buffer.max_steps = 100
+    replay_buffer.max_depth = 4
 
-    ## height
+    replay_buffer.timestep = 0
+    result = replay_buffer.time_split(data_dict)
+    expected = True
+    assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.timestep = 25
+    result = replay_buffer.time_split(data_dict)
+    expected = True
+    assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
 
-    ## rel_pos
+    replay_buffer.timestep = 50
+    result = replay_buffer.time_split(data_dict)
+    expected = True
+    assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
 
-    ## velocity
+    replay_buffer.timestep = 75
+    result = replay_buffer.time_split(data_dict)
+    expected = True
+    assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
 
-    print("\033[32mTEST PASSED \033[0m _split() tests passed")
+
+    replay_buffer.timestep = 100
+    result = replay_buffer.time_split(data_dict)
+    expected = False
+    assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
+
+
+    print("\033[32mTEST PASSED \033[0m time_split() test passed")
 
     # insert() tests
-
-    # important_indices = np.array([0, 7])
-
-    # num_branches = 5000
-    # workspace_options = 20
-
-    # data = dict(
-    #     workspace_width = np.empty(shape=(num_branches//2 * workspace_options), dtype=np.float32),
-    #     num_branches = np.empty(shape=(num_branches//2 * workspace_options), dtype=int),
-    #     density = np.empty(shape=(num_branches//2 * workspace_options), dtype=np.float32)
-    # )
-
-    # for w in range(0, workspace_options):
-        # total_success = 0.0
-        # for i in range(1,num_branches, 2):
-        #     finished = False
-        #     buffer.current_branch_count = i
-        #     data_dict["observations"][important_indices] = 0
-    #         start = data_dict["observations"][important_indices[0]] - FLAGS.workspace_width / 2
-    #         buffer.insert(data_dict)
-    #         for idx in range(buffer.current_branch_count):
-    #             expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * buffer.current_branch_count), 3)
-    #             result = round(buffer.dataset_dict["observations"][buffer._insert_index - buffer.current_branch_count + idx][important_indices[0]] - start, 3)
-    #             # assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected {expected} but got {result})"
-    #             if result != expected:
-    #                 # print(f"At ww = {FLAGS.workspace_width}, maximum transforms = {i - 2}")
-    #                 # print(f"{i} failed at {idx}")
-    #                 finished = True
-
-    #                 break
-    #         if not finished:
-    #             print(f"SUCCESS at {i} branches")
-    #             total_success += 1
-    #         data["workspace_width"][i//2 + (num_branches//2) * w] = 0.05 * (w + 1)
-    #         data["num_branches"][i//2 + (num_branches//2) * w] = i
-    #         data["density"][i//2 + (num_branches//2) * w] = total_success/(i//2 + 1)
-
-    #     FLAGS.workspace_width = FLAGS.workspace_width + 0.05
-    #     buffer.workspace_width = FLAGS.workspace_width
-    # del i, idx, result, expected
-
-    # df = pd.DataFrame(data)
-    # df.to_excel('output.xlsx', index=False)
-
-    data_dict["observations"][0] = 0
-    data_dict["observations"][1] = 0
-    start = data_dict["observations"][0] - FLAGS.workspace_width / 2
-
-    
-    # buffer.insert(data_dict)
-    # for idx in range(buffer.current_branch_count):
-    #     expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * buffer.current_branch_count), 3)
-    #     result = round(buffer.dataset_dict["observations"][idx][0] - start, 3)
-    #     assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected {expected} but got {result})"
-
-    replay_buffer.insert(data_dict)
-    for idx in range(replay_buffer.current_branch_count):
-        expected = round(FLAGS.workspace_width * (2 * idx + 1)/(2 * replay_buffer.current_branch_count), 3)
-        result = round(replay_buffer.dataset_dict["observations"][idx][0] - start, 3)
-        assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected {expected} but got {result})"
 
     print("\033[32mTEST PASSED \033[0m insert() tests passed")
         

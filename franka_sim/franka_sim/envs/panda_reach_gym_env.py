@@ -35,7 +35,7 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
         physics_dt: float = 0.002,
         time_limit: float = 10.0,
         render_spec: GymRenderingSpec = GymRenderingSpec(),
-        render_mode: Literal["rgb_array", "human"] = "rgb_array",
+        render_mode: Literal["rgb_array", "human"] = None,
         image_obs: bool = False,
     ):
         self._action_scale = action_scale
@@ -145,7 +145,8 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
             height=960,
             camera_id=0
         )
-        self._viewer.render(self.render_mode)
+        if self.render_mode:
+            self._viewer.render(self.render_mode)
 
     def reset(
         self, seed=None, **kwargs
@@ -215,7 +216,16 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
 
         obs = self._compute_observation()
         rew = self._compute_reward()
-        terminated = self.time_limit_exceeded()
+
+        # For reach environment, finger 
+        if rew >= 0.55:
+            terminated = True
+        else:
+            # Check if the time limit is exceeded.
+            if self._time_limit is not None:
+                terminated = self.time_limit_exceeded()
+            else:
+                terminated = False
 
         return obs, rew, terminated, False, {}
 
@@ -264,7 +274,7 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
         # Calculate distance
         dist = np.linalg.norm(block_pos - tcp_pos)
 
-        # Distance-based reward
+        # Distance-based reward. Note at norm of 0.015, reward will be 0.5
         r_close = np.exp(-20 * dist)
         r_close = np.clip(r_close, 0.0, 1.0)
     
