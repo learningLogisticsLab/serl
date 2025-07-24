@@ -71,18 +71,23 @@ def main(_):
     replay_buffer.max_depth = 4
     replay_buffer.branching_factor = 3
 
-    branches = replay_buffer.fractal_branch()
-    assert branches == 3
-    branches = replay_buffer.fractal_branch()
-    assert branches == 9
-    branches = replay_buffer.fractal_branch()
-    assert branches == 27
-    branches = replay_buffer.fractal_branch()
-    assert branches == 81
-    branches = replay_buffer.fractal_branch()
-    assert branches == 81
+    result = replay_buffer.fractal_branch()
+    expected = 3
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    result = replay_buffer.fractal_branch()
+    expected = 9
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    result = replay_buffer.fractal_branch()
+    expected = 27
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    result = replay_buffer.fractal_branch()
+    expected = 81
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    result = replay_buffer.fractal_branch()
+    expected = 81
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
 
-    del branches
+    del result, expected
 
     print("\033[32mTEST PASSED \033[0m _branch() tests passed")
 
