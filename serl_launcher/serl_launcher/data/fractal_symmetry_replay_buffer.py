@@ -79,7 +79,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         self.y_obs_idx = kwargs["y_obs_idx"]
         self.workspace_width = workspace_width
         self.timestep = 0
-        self.current_depth = 1
+        self.current_depth = 0
         self.branch_index = [workspace_width/2]
 
         for k in kwargs.keys():
@@ -110,15 +110,12 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         
     # FOR TESTING ONLY
     def test_branch(self):
+        self.current_depth += 1
         return 1
     
     def fractal_branch(self):
         # return a new number of branches = branching_factor ^ depth
-        temp = self.branching_factor ** self.current_depth
-        self.current_depth += 1
-        if self.current_depth > self.max_depth:
-            return self.branching_factor ** self.max_depth
-        return temp
+        return self.branching_factor ** self.current_depth
     
     # REQUIRES TESTING
     # def constant_branch(self):
@@ -136,9 +133,10 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             
     # REQUIRES TESTING
     def time_split(self, data_dict: DatasetDict):
-        if self.timestep % (self.max_steps/self.max_depth) == 0:
-            return True
-        return False
+        if self.timestep % (self.max_steps/self.max_depth) or self.current_depth >= self.max_depth:
+            return False
+        self.current_depth += 1
+        return True
     
     def constant_split(self, data_dict: DatasetDict):
         return True
@@ -174,6 +172,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 super().insert(new_data_dict)
 
         if data_dict["dones"]:
-            self.current_depth = 1
+            self.current_depth = 0
             self.max_steps = int(self.timestep * self.alpha + self.max_steps * (1 - self.alpha))
             
