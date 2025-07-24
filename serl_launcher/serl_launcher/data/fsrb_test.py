@@ -68,32 +68,67 @@ def main(_):
 
     ## fractal
 
-    replay_buffer.max_depth = 4
     replay_buffer.branching_factor = 3
 
+    replay_buffer.current_depth = 1
     result = replay_buffer.fractal_branch()
     expected = 3
     assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 2
     result = replay_buffer.fractal_branch()
     expected = 9
     assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 3
     result = replay_buffer.fractal_branch()
     expected = 27
     assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 4
     result = replay_buffer.fractal_branch()
     expected = 81
     assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
-    result = replay_buffer.fractal_branch()
-    expected = 81
-    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 0
 
     del result, expected
 
-    print("\033[32mTEST PASSED \033[0m _branch() tests passed")
+    print("\033[32mTEST PASSED \033[0m fractal_branch() tests passed")
 
     # split() tests
+    ## time
+    replay_buffer.max_steps = 100
+    replay_buffer.max_depth = 4
 
-    print("\033[32mTEST PASSED \033[0m _split() tests passed")
+    replay_buffer.timestep = 0
+    result = replay_buffer.time_split(data_dict)
+    expected = True
+    assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.timestep = 25
+    result = replay_buffer.time_split(data_dict)
+    expected = True
+    assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
+
+    replay_buffer.timestep = 50
+    result = replay_buffer.time_split(data_dict)
+    expected = True
+    assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
+
+    replay_buffer.timestep = 75
+    result = replay_buffer.time_split(data_dict)
+    expected = True
+    assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
+
+
+    replay_buffer.timestep = 100
+    result = replay_buffer.time_split(data_dict)
+    expected = False
+    assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
+
+
+    print("\033[32mTEST PASSED \033[0m time_split() test passed")
 
     # insert() tests
 
