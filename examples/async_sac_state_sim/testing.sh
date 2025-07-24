@@ -37,6 +37,6 @@ send_tmux_command() {
 
 # === BASELINE RUNS ===
 # tmux_script_launch.sh must have ./ in front to tell tmux to execute the script in the current directory. 
-for seed in {1}; do # Loop 
+for seed in {1..2}; do # Loop 
     send_tmux_command "./tmux_script_launch.sh --env $env --name ${env}-baseline --type replay_buffer --seed $seed"
 done
