@@ -127,10 +127,29 @@ def main(_):
     expected = False
     assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
 
+    del result, expected
 
     print("\033[32mTEST PASSED \033[0m time_split() test passed")
 
     # insert() tests
+    # insert() tests
+    initial_size = len(replay_buffer.dataset_dict['observations'][0]) * replay_buffer._insert_index % len(replay_buffer.dataset_dict['observations'])
+
+    replay_buffer.insert(data_dict)
+    final_size = len(replay_buffer.dataset_dict['observations'][0]) * replay_buffer._insert_index % len(replay_buffer.dataset_dict['observations'])
+    
+    result = final_size > initial_size
+    expected = True
+    assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected buffer size to increase from {initial_size} to {final_size})"
+    del result, expected, initial_size, final_size
+
+
+
+
+    print("\033[32mTEST PASSED \033[0m insert() tests passed")
+
+
+
 
     print("\033[32mTEST PASSED \033[0m insert() tests passed")
         
