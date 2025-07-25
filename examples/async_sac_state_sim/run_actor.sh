@@ -20,15 +20,19 @@ python async_sac_state_sim.py \
     --env PandaReachCube-v0 \
     --exp_name serl-reach \
     --seed 0 \
-    --replay_buffer_type replay_buffer \
-    --branch_method test \
-    --split_method test \
+    --replay_buffer_type fractal_symmetry_replay_buffer \
+    --branch_method fractal \
+    --split_method time \
     --starting_branch_count 1 \
     --max_steps 40000 \
     --training_starts 1000 \
     --critic_actor_ratio 8 \
     --batch_size 256 \
     --replay_buffer_capacity 100000 \
+    --alpha 1 \
+    --max_depth 4 \
+    --branching_factor 3 \
+    --workspace_width 5 \
     --save_model True \
     # --checkpoint_period 10000 \
     # --checkpoint_path "$CHECKPOINT_DIR" \
