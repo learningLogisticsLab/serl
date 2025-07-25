@@ -4,8 +4,7 @@ from serl_launcher.data.dataset import DatasetDict
 from serl_launcher.data.replay_buffer import ReplayBuffer
 import copy
 
-import time
-
+from datetime import datetime as dt
 class FractalSymmetryReplayBuffer(ReplayBuffer):
     def __init__(
         self,
@@ -18,6 +17,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         kwargs: dict
     ):
         self.current_branch_count=1
+        self.update_max_traj_length = False
 
         method_check = "split_method"
         match split_method:
@@ -26,12 +26,16 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.max_depth=kwargs["max_depth"]
                 del kwargs["max_depth"]
 
-                assert "max_steps" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "max_steps")
-                self.max_steps=kwargs["max_steps"]
+                assert "max_traj_length" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "max_traj_length")
+                self.max_traj_length=kwargs["max_traj_length"]
 
                 assert "alpha" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "alpha")
                 self.alpha=kwargs["alpha"]
+                update_max_traj_length = True
                 self.split = self.time_split 
+
+            case "constant":
+                self.split = self.constant_split
 
             case "test":
                 self.split = self.test_split
@@ -41,9 +45,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         method_check = "branch_method"
         match branch_method:
             case "fractal":
-                assert "max_depth" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "max_depth")
-                self.max_depth=kwargs["max_depth"]
-                del kwargs["max_depth"]
 
                 assert "branching_factor" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "branching_factor")
                 self.branching_factor=kwargs["branching_factor"]
@@ -80,7 +81,11 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         self.workspace_width = workspace_width
         self.timestep = 0
         self.current_depth = 0
-        self.branch_index = [workspace_width/2]
+
+        self.branch_index = np.empty(self.current_branch_count, dtype=np.float32)
+        constant = self.workspace_width/(2 * self.current_branch_count)
+        for i in range(0, self.current_branch_count):
+            self.branch_index[i] = (2 * i + 1) * constant
 
         for k in kwargs.keys():
             print(f"\033[33mWARNING \033[0m argument \"{k}\" not used")
@@ -132,7 +137,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             
     # REQUIRES TESTING
     def time_split(self, data_dict: DatasetDict):
-        if self.timestep % (self.max_steps/self.max_depth) or self.current_depth >= self.max_depth:
+        if self.timestep % (self.max_traj_length//self.max_depth) or self.current_depth >= self.max_depth:
             return False
         self.current_depth += 1
         return True
@@ -141,7 +146,8 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         return True
     
     def insert(self, data_dict_not: DatasetDict):
-        
+
+        sector_1 = dt.now()
         data_dict = copy.deepcopy(data_dict_not)
 
         # Update number of branches if needed
@@ -154,13 +160,14 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 for i in range(0, self.current_branch_count):
                     self.branch_index[i] = (2 * i + 1) * constant
         
+        sector_2 = dt.now()
         # Initialize to extreme x and y
         x = -self.workspace_width/2
         transform = np.zeros_like(data_dict["observations"])
         transform[self.x_obs_idx] = x
         transform[self.y_obs_idx] = x
         self.transform(data_dict, transform)
-
+        sector_3 = dt.now()
         # Transform and insert transitions (multiprocessing in the future)
         for x in range(0, self.current_branch_count):
             transform[self.x_obs_idx] = self.branch_index[x]
@@ -169,8 +176,13 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 transform[self.y_obs_idx] = self.branch_index[y]
                 self.transform(new_data_dict, transform)
                 super().insert(new_data_dict)
-
+        sector_4 = dt.now()
+        self.timestep += 1
         if data_dict["dones"]:
             self.current_depth = 0
-            self.max_steps = int(self.timestep * self.alpha + self.max_steps * (1 - self.alpha))
-            
+            if self.update_max_traj_length:
+                self.max_traj_length = int(self.timestep * self.alpha + self.max_traj_length * (1 - self.alpha))
+            self.timestep = 0
+
+        finish = dt.now()
+        print(f"Splits: {(sector_2 - sector_1).total_seconds():.5f} : {(sector_3 - sector_2).total_seconds():.5f} : {(sector_4 - sector_3).total_seconds():.5f} : {(finish - sector_4).total_seconds():.5f}\nLaptime: {(finish - sector_1).total_seconds():.5f}")

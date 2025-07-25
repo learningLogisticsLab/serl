@@ -84,11 +84,7 @@ def getProcesses(name):
                 else:
                     p2_pid = proc.pid
                     break
-        if p1_pid and p2_pid:
-            if p1_pid > p2_pid:
-                temp = p2_pid
-                p2_pid = p1_pid
-                p1_pid = temp
+        if p1_pid and p2_pid and p1_pid != p2_pid:
             p1 = psutil.Process(p1_pid)
             p2 = psutil.Process(p2_pid)
             return p1, p2
@@ -102,16 +98,29 @@ def run_test(args:dict):
         actor_log = os.path.join(LOG_DIR, f"actor_seed_{seed}.log")
         learner_log = os.path.join(LOG_DIR, f"learner_seed_{seed}.log")
 
-        args["max_steps"] = max_steps * 10
+        args["max_steps"] = max_steps * 10000
         send_tmux_command(f"{SESSION}:0.0", f"bash ./automate_actor.sh {' '.join(f'--{k} {v}' for k, v in args.items())}") #conda/jax/tmux mem conflict? , f"{actor_cmd(args)}")# > {actor_log} 2>&1") # Uncomment to send to log files
         args["max_steps"] = max_steps
         send_tmux_command(f"{SESSION}:0.1", f"bash ./automate_learner.sh {' '.join(f'--{k} {v}' for k, v in args.items())}")#mem conflict?, f"{learner_cmd(args)}")# > {learner_log} 2>&1")
 
-        actor, learner = getProcesses("async_sac_state")
+        p1, p2 = getProcesses("async_sac_state")
 
-        learner.wait()
-        actor.terminate()
-        actor.wait()       
+        while (True):
+            if p1.is_running():
+                if p2.is_running():
+                    continue
+                else:
+                    p1.terminate()
+                    p1.wait()
+                    break
+            else:
+                if p2.is_running():
+                    p2.terminate()
+                    p2.wait()
+                    break
+            break
+
+           
 
 def main(_):
     ensure_tmux_session(SESSION)
@@ -125,9 +134,10 @@ def main(_):
         "training_starts": 1000,
         "critic_actor_ratio": 8,
         "batch_size": 256,
-        "replay_buffer_capacity": 100000,
+        "replay_buffer_capacity": 1000000,
         "save_model": True,
-        "max_steps": 2000
+        "max_steps": 50000,
+        "workspace_width": 0.5
     }
 
     # --- Baseline ---

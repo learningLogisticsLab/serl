@@ -62,9 +62,10 @@ flags.DEFINE_string("replay_buffer_type", "replay_buffer", "Which type of replay
 flags.DEFINE_string("branch_method", None, "Method for determining number of transforms per dimension (x,y)")
 flags.DEFINE_string("split_method", None, "Method for determining whether to change the number of transforms per dimension (x,y)") # Remember to default None
 flags.DEFINE_float("workspace_width", None, "Workspace width in meters")
-flags.DEFINE_integer("max_depth", None, "Total layers of depth")
+flags.DEFINE_integer("max_depth", None, "Maximum layers of depth")
 flags.DEFINE_integer("branching_factor", None, "Rate of change of number of transforms per dimension (x,y)")
 flags.DEFINE_integer("starting_branch_count", None, "Initial number of transformations per dimension (x,y)")
+flags.DEFINE_integer("alpha", None, "placeholder")
 
 
 flags.DEFINE_boolean(
@@ -307,6 +308,10 @@ def main(_):
             x_obs_idx=np.array([0,4]),
             y_obs_idx=np.array([1,5]),
             preload_rlds_path=FLAGS.preload_rlds_path,
+            alpha=FLAGS.alpha,
+            branching_factor=FLAGS.branching_factor,
+            max_depth=FLAGS.max_depth,
+            max_traj_length=FLAGS.max_traj_length,
         )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={
