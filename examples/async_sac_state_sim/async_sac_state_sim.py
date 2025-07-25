@@ -75,6 +75,9 @@ flags.DEFINE_boolean(
 flags.DEFINE_string("log_rlds_path", None, "Path to save RLDS logs.")
 flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 
+flags.DEFINE_enum("symmetry", "fractal", ["fractal", "reflection"], "Symmetry type for transformations")
+flags.DEFINE_integer("n_KER", 4, "Number of new reflectionalsymmetries generated equals (2*n_KER)-1")
+
 
 def print_green(x):
     return print("\033[92m {}\033[00m".format(x))
@@ -104,7 +107,7 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
 
     eval_env = gym.make(FLAGS.env)
     #if FLAGS.env == "PandaPickCube-v0":
-    eval_env = gym.wrappers.FlattenObservation(eval_env) ## Note!! 
+    eval_env = gym.wrappers.FlattenObservation(eval_env)
     eval_env = RecordEpisodeStatistics(eval_env)
 
     obs, _ = env.reset()
@@ -295,6 +298,7 @@ def main(_):
     )
 
     if FLAGS.learner:
+            
         sampling_rng = jax.device_put(sampling_rng, device=sharding.replicate())
         replay_buffer = make_replay_buffer(
             env,
@@ -312,6 +316,7 @@ def main(_):
             branching_factor=FLAGS.branching_factor,
             max_depth=FLAGS.max_depth,
             max_traj_length=FLAGS.max_traj_length,
+            n_KER=FLAGS.n_KER
         )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={

@@ -33,6 +33,7 @@ python async_sac_state_sim.py "$@"\
     # --max_depth 4 \
     # --branching_factor 3 \
     # --workspace_width 5 \
+    # --n_KER 4 \
     # --checkpoint_period 10000 \
     # --checkpoint_path "$CHECKPOINT_DIR" \
     #--render \

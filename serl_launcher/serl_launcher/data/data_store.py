@@ -10,6 +10,9 @@ from serl_launcher.data.memory_efficient_replay_buffer import (
 from serl_launcher.data.fractal_symmetry_replay_buffer import (
     FractalSymmetryReplayBuffer
 )
+from serl_launcher.data.new_ker_replay_buffer import (
+    KerReplayBuffer
+)
 
 from agentlace.data.data_store import DataStoreBase
 
@@ -196,6 +199,67 @@ class FractalSymmetryReplayBufferDataStore(FractalSymmetryReplayBuffer, DataStor
     def sample(self, *args, **kwargs):
         with self._lock:
             return super(FractalSymmetryReplayBufferDataStore, self).sample(*args, **kwargs)
+
+    # NOTE: method for DataStoreBase
+    def latest_data_id(self):
+        return self._insert_index
+
+    # NOTE: method for DataStoreBase
+    def get_latest_data(self, from_id: int):
+        raise NotImplementedError  # TODO
+
+
+### Copy of FractalSymmetryReplayBufferDataStore class with Ker naming chnages and deletions of fractal specific code
+class KerReplayBufferDataStore(KerReplayBuffer, DataStoreBase):
+    def __init__(
+        self,
+        observation_space: gym.Space,
+        action_space: gym.Space,
+        capacity: int,
+	    n_KER: int,
+        rlds_logger: Optional[RLDSLogger] = None,
+        **kwargs: dict,
+    ):
+        KerReplayBuffer.__init__(self, observation_space, action_space, capacity, n_KER, 0.1443)
+        DataStoreBase.__init__(self, capacity)
+        self._lock = Lock()
+        self._logger = None
+
+        if rlds_logger:
+            self.step_type = RLDSStepType.TERMINATION  # to init the state for restart
+            self._logger = rlds_logger
+
+    # ensure thread safety
+    def insert(self, data):
+        with self._lock:
+            super(KerReplayBufferDataStore, self).insert(data)
+
+            # TODO: Data logging currently does NOT WORK as shown if we want to log our transformed transitions
+            # add data to the rlds logger
+            if self._logger:
+                if self.step_type in {
+                    RLDSStepType.TERMINATION,
+                    RLDSStepType.TRUNCATION,
+                }:
+                    self.step_type = RLDSStepType.RESTART
+                elif not data["masks"]:  # 0 is done, 1 is not done
+                    self.step_type = RLDSStepType.TERMINATION
+                elif data["dones"]:
+                    self.step_type = RLDSStepType.TRUNCATION
+                else:
+                    self.step_type = RLDSStepType.TRANSITION
+
+                self._logger(
+                    action=data["actions"],
+                    obs=data["next_observations"],  # TODO: check if this is correct
+                    reward=data["rewards"],
+                    step_type=self.step_type,
+                )
+
+    # ensure thread safety
+    def sample(self, *args, **kwargs):
+        with self._lock:
+            return super(KerReplayBufferDataStore, self).sample(*args, **kwargs)
 
     # NOTE: method for DataStoreBase
     def latest_data_id(self):
