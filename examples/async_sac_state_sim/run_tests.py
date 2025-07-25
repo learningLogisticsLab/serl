@@ -20,7 +20,7 @@ def learner(kwargs:dict):
 def main(_):
     env = "PandaReachCube-v0"
     random_steps = 1000
-    max_steps_learner = 10000
+    max_steps_learner = 5000
     max_steps_actor = max_steps_learner * 2
     training_starts = 1000
     critic_actor_ratio = 8

@@ -59,14 +59,12 @@ flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
 
 # flags for replay buffer
 flags.DEFINE_string("replay_buffer_type", "replay_buffer", "Which type of replay buffer to use")
-flags.DEFINE_string("branch_method", None, "Method for how many branches to generate")
-flags.DEFINE_string("split_method", "test", "Method for when to change number of branches generated") # Remember to default None
-flags.DEFINE_float("workspace_width", 0.5, "Workspace width in centimeters") # Remember to default None
-flags.DEFINE_integer("depth", None, "Total layers of depth")
-flags.DEFINE_integer("dendrites", None, "Dendrites for fractal branching")
-flags.DEFINE_integer("timesplit_freq", None, "Frequency of splits according to time")
-flags.DEFINE_integer("branch_count_rate_of_change", None, "Rate of change for linear branching")
-flags.DEFINE_integer("starting_branch_count", 1, "Initial number of branches")
+flags.DEFINE_string("branch_method", None, "Method for determining number of transforms per dimension (x,y)")
+flags.DEFINE_string("split_method", None, "Method for determining whether to change the number of transforms per dimension (x,y)") # Remember to default None
+flags.DEFINE_float("workspace_width", None, "Workspace width in meters")
+flags.DEFINE_integer("max_depth", None, "Total layers of depth")
+flags.DEFINE_integer("branching_factor", None, "Rate of change of number of transforms per dimension (x,y)")
+flags.DEFINE_integer("starting_branch_count", None, "Initial number of transformations per dimension (x,y)")
 
 
 flags.DEFINE_boolean(
