@@ -129,7 +129,7 @@ def actor(agent: SACAgent, data_store, env, sampling_rng, demos_handler=None):
             with timer.context("sample and step into env with loaded demos"):
               
                 # Insert complete demonstration into the data store 
-                print(f"Inserting {demos_handler.data["transition_ctr"]} transitions into the data store.")
+                print(f"Inserting {demos_handler.data['transition_ctr']} transitions into the data store.")
                 demos_handler.insert_data_to_buffer(data_store)
 
         else:
