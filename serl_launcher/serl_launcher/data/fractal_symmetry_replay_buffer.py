@@ -3,10 +3,8 @@ import numpy as np
 from serl_launcher.data.dataset import DatasetDict
 from serl_launcher.data.replay_buffer import ReplayBuffer
 import copy
-from datetime import datetime
 
-import time
-
+from datetime import datetime as dt
 class FractalSymmetryReplayBuffer(ReplayBuffer):
     def __init__(
         self,
@@ -148,8 +146,8 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         return True
     
     def insert(self, data_dict_not: DatasetDict):
-        start = datetime.now()
-        
+
+        sector_1 = dt.now()
         data_dict = copy.deepcopy(data_dict_not)
 
         # Update number of branches if needed
@@ -162,13 +160,14 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 for i in range(0, self.current_branch_count):
                     self.branch_index[i] = (2 * i + 1) * constant
         
+        sector_2 = dt.now()
         # Initialize to extreme x and y
         x = -self.workspace_width/2
         transform = np.zeros_like(data_dict["observations"])
         transform[self.x_obs_idx] = x
         transform[self.y_obs_idx] = x
         self.transform(data_dict, transform)
-
+        sector_3 = dt.now()
         # Transform and insert transitions (multiprocessing in the future)
         for x in range(0, self.current_branch_count):
             transform[self.x_obs_idx] = self.branch_index[x]
@@ -177,11 +176,13 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 transform[self.y_obs_idx] = self.branch_index[y]
                 self.transform(new_data_dict, transform)
                 super().insert(new_data_dict)
-
+        sector_4 = dt.now()
         self.timestep += 1
         if data_dict["dones"]:
             self.current_depth = 0
             if self.update_max_traj_length:
                 self.max_traj_length = int(self.timestep * self.alpha + self.max_traj_length * (1 - self.alpha))
             self.timestep = 0
-        print(f"{datetime.now() - start}")
+
+        finish = dt.now()
+        print(f"Splits: {(sector_2 - sector_1).total_seconds():.5f} : {(sector_3 - sector_2).total_seconds():.5f} : {(sector_4 - sector_3).total_seconds():.5f} : {(finish - sector_4).total_seconds():.5f}\nLaptime: {(finish - sector_1).total_seconds():.5f}")
