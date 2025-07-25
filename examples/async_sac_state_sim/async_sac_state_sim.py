@@ -65,6 +65,7 @@ flags.DEFINE_string("log_rlds_path", None, "Path to save RLDS logs.")
 flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 
 flags.DEFINE_enum("symmetry", "fractal", ["fractal", "reflection"], "Symmetry type for transformations")
+flags.DEFINE_integer("n_KER", 4, "Number of new reflectionalsymmetries generated equals (2*n_KER)-1")
 
 
 def print_green(x):
@@ -303,11 +304,11 @@ def main(_):
         elif FLAGS.symmetry == "reflection":
             replay_buffer = make_replay_buffer(
                 env,
-                capacity=FLAGS.replay_buffer_capacity,
+		capacity=FLAGS.replay_buffer_capacity,
                 rlds_logger_path=FLAGS.log_rlds_path,
                 type="ker_replay_buffer",
                 preload_rlds_path=FLAGS.preload_rlds_path,
-                n_KER=4
+                n_KER=FLAGS.n_KER
             )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={

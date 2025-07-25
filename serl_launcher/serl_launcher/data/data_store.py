@@ -10,7 +10,7 @@ from serl_launcher.data.memory_efficient_replay_buffer import (
 from serl_launcher.data.fractal_symmetry_replay_buffer import (
     FractalSymmetryReplayBuffer
 )
-from serl_launcher.data.ker_replay_buffer import (
+from serl_launcher.data.new_ker_replay_buffer import (
     KerReplayBuffer
 )
 
@@ -216,11 +216,11 @@ class KerReplayBufferDataStore(KerReplayBuffer, DataStoreBase):
         observation_space: gym.Space,
         action_space: gym.Space,
         capacity: int,
+	    n_KER: int,
         rlds_logger: Optional[RLDSLogger] = None,
-        n_KER: int,
         **kwargs: dict,
     ):
-        KerReplayBuffer.__init__(self, observation_space, action_space, capacity, )
+        KerReplayBuffer.__init__(self, observation_space, action_space, capacity, n_KER, 0.1443)
         DataStoreBase.__init__(self, capacity)
         self._lock = Lock()
         self._logger = None

@@ -15,17 +15,18 @@ if [ ! -d "$CHECKPOINT_DIR" ]; then
 fi
 python async_sac_state_sim.py "$@" \
     --actor \
-    --render \
     --env $ENV_NAME \
-    --exp_name=serl-reach \
+    --exp_name=KER \
     --seed 0 \
     --random_steps 1000 \
-    --max_steps 100000 \
+    --max_steps 50_000 \
     --training_starts 1000 \
     --critic_actor_ratio 8 \
     --batch_size 256 \
-    --replay_buffer_capacity 100000 \
+    --replay_buffer_capacity 1_000_000 \
     --save_model True \
     --checkpoint_period 10000 \
     --checkpoint_path "$CHECKPOINT_DIR" \
+    --symmetry reflection \
+    --n_KER 4
     #--debug # wandb is disabled when debug

@@ -35,6 +35,7 @@ class KerReplayBuffer(ReplayBuffer):
         self.pos_idx = np.array([0,1,2])
         self.vel_idx = np.array([4,5,6])
         self.bp_idx = np.array([7,8,9]) # Block position
+        self.acts_idx = np.array([0,1,2])
         self.translational_obs = np.array([self.pos_idx, self.vel_idx, self.bp_idx])
         self.rotational_obs = np.array([])
         self.action_space_dim = action_space.shape[0]
@@ -71,11 +72,11 @@ class KerReplayBuffer(ReplayBuffer):
             data_dict["next_observations"][obs] = s_data
             
         # TODO fix spaghetti
-        o_data = data_dict["actions"][0,1,2]
+        o_data = data_dict["actions"][self.acts_idx]
         o_data_hat = np.dot(inv_rot_z_theta,o_data)
         o_data_hat[1] = -o_data_hat[1]
         s_data =  np.dot(rot_z_theta,o_data_hat)
-        data_dict["actions"][0,1,2] = s_data
+        data_dict["actions"][self.acts_idx] = s_data
         return
 
         
