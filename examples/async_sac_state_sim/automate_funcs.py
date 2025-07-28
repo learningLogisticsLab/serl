@@ -1,21 +1,13 @@
 import subprocess
 import os
+import psutil
 from absl import app
+import copy
 
 LOG_DIR = "serl_logs"
+SESSION = "serl_session"
+
 os.makedirs(LOG_DIR, exist_ok=True)
-
-def actor_cmd(kwargs: dict) -> str:
-    cmd = "python async_sac_state_sim.py --actor"
-    for k, v in kwargs.items():
-        cmd += f" --{k} {v}"
-    return cmd
-
-def learner_cmd(kwargs: dict) -> str:
-    cmd = "python async_sac_state_sim.py --learner"
-    for k, v in kwargs.items():
-        cmd += f" --{k} {v}"
-    return cmd
 
 def run_tmux_command(cmd: str):
     return subprocess.run(cmd, shell=True, check=True)
@@ -28,7 +20,7 @@ def send_tmux_command(target: str, command: str, env: str = "serl", workdir: str
         f"{command}"
     )
     
-    subprocess.Popen(
+    subprocess.run(
         f'tmux send-keys -t {target} "{full_command}" C-m',
         shell=True
         # stdout=subprocess.DEVNULL,
@@ -45,73 +37,104 @@ def ensure_tmux_session(session_name: str):
         subprocess.run(["tmux", "new-session", "-d", "-s", session_name, "-n", "main"], check=True)
         subprocess.run(["tmux", "split-window", "-v", "-t", f"{session_name}:0"], check=True)
 
-def main(_):
-    session = "serl_session"
-    ensure_tmux_session(session)
+def getProcesses(name):
+    p1_pid = None
+    p2_pid = None
+    first = True
+    while True:
+        for proc in psutil.process_iter(["name"]):
+            if proc.info["name"] == name:
+                if first:
+                    p1_pid = proc.pid
+                    first = False
+                else:
+                    p2_pid = proc.pid
+                    break
+        if p1_pid and p2_pid and p1_pid != p2_pid:
+            p1 = psutil.Process(p1_pid)
+            p2 = psutil.Process(p2_pid)
+            return p1, p2
+        
+def run_test(args:dict):
 
-    env = "PandaReachCube-v0"
-    random_steps = 500
-    max_steps = 30000
-    training_starts = 500
-    critic_actor_ratio = 8
-    batch_size = 256
-    replay_buffer_capacity = 100000
-    save_model = True
-
-    base_args = {
-        "env": env,
-        "random_steps": random_steps,
-        "training_starts": training_starts,
-        "critic_actor_ratio": critic_actor_ratio,
-        "batch_size": batch_size,
-        "replay_buffer_capacity": replay_buffer_capacity,
-        "save_model": save_model,
-        "max_steps": max_steps
-    }
-
-    # --- Baseline ---
-    print("Running baseline...")
-    args = base_args.copy()
-    args["replay_buffer_type"] = "replay_buffer"
-    args["exp_name"] = f"{env}-baseline"
-
+    max_steps = args["max_steps"]
     for seed in range(1):
         args["seed"] = seed
-        # args["max_steps"] = max_steps_actor
         actor_log = os.path.join(LOG_DIR, f"actor_seed_{seed}.log")
         learner_log = os.path.join(LOG_DIR, f"learner_seed_{seed}.log")
 
-        send_tmux_command(f"{session}:0.0", f"./run_actor.sh {' '.join(f'--{k} {v}' for k, v in args.items())}") #conda/jax/tmux mem conflict? , f"{actor_cmd(args)}")# > {actor_log} 2>&1") # Uncomment to send to log files
-        # args["max_steps"] = max_steps_learner
-        send_tmux_command(f"{session}:0.1", f"./run_learner.sh {' '.join(f'--{k} {v}' for k, v in args.items())}")#mem conflict?, f"{learner_cmd(args)}")# > {learner_log} 2>&1")
+        args["max_steps"] = max_steps * 10000
+        send_tmux_command(f"{SESSION}:0.0", f"bash ./automate_actor.sh {' '.join(f'--{k} {v}' for k, v in args.items())}") #conda/jax/tmux mem conflict? , f"{actor_cmd(args)}")# > {actor_log} 2>&1") # Uncomment to send to log files
+        args["max_steps"] = max_steps
+        send_tmux_command(f"{SESSION}:0.1", f"bash ./automate_learner.sh {' '.join(f'--{k} {v}' for k, v in args.items())}")#mem conflict?, f"{learner_cmd(args)}")# > {learner_log} 2>&1")
 
-        # Optional: Wait before next round
-        print(f"Launched baseline with seed={seed}")
+        p1, p2 = getProcesses("async_sac_state")
 
-    # --- Fractal Symmetry Replay Buffer ---
-    # print("Running fractal symmetry buffer variations...")
-    # args = base_args.copy()
-    # args["replay_buffer_type"] = "fractal_symmetry_replay_buffer"
-    # args["branch_method"] = "constant"
-    # args["split_method"] = "constant"
+        while (True):
+            if p1.is_running():
+                if p2.is_running():
+                    continue
+                else:
+                    p1.terminate()
+                    p1.wait()
+                    break
+            else:
+                if p2.is_running():
+                    p2.terminate()
+                    p2.wait()
+                    break
+            break
 
-    # for b in [1, 3, 9, 27]:
-    #     args["starting_branch_count"] = b
-    #     args["exp_name"] = f"{env}-{b}x{b}"
-    #     for seed in range(5):
-    #         args["seed"] = seed
-    #         args["max_steps"] = max_steps_actor
-    #         actor_log = os.path.join(LOG_DIR, f"actor_b{b}_s{seed}.log")
-    #         learner_log = os.path.join(LOG_DIR, f"learner_b{b}_s{seed}.log")
+           
 
-    #         send_tmux_command(f"{session}:0.0", f"{actor_cmd(args)} > {actor_log} 2>&1")
-    #         args["max_steps"] = max_steps_learner
-    #         send_tmux_command(f"{session}:0.1", f"{learner_cmd(args)} > {learner_log} 2>&1")
+def main(_):
+    ensure_tmux_session(SESSION)
 
-    #         print(f"Launched branch={b}, seed={seed}")
+    env = "PandaReachCube-v0"
+    
 
-    # Optional: Attach manually to see progress
-    # run_tmux_command(f"tmux attach-session -t {session}")
+    base_args = {
+        "env": "PandaReachCube-v0",
+        "random_steps": 1000,
+        "training_starts": 1000,
+        "critic_actor_ratio": 8,
+        "batch_size": 256,
+        "replay_buffer_capacity": 1000000,
+        "save_model": True,
+        "max_steps": 50000,
+        "workspace_width": 0.5
+    }
+
+    # --- Baseline ---
+    args = copy.deepcopy(base_args)
+    args["replay_buffer_type"] = "replay_buffer"
+    args["exp_name"] = f"{args['env']}-baseline"
+    run_test(args)     
+        
+
+    # --- 1x1, 3x3, 9x9, 27x27 ---
+    args = copy.deepcopy(base_args)
+    args["replay_buffer_type"] = "fractal_symmetry_replay_buffer"
+    args["branch_method"] = "constant"
+    args["split_method"] = "constant"
+
+    for b in (1, 3, 9, 27):
+        args["starting_branch_count"] = b
+        args["exp_name"] = f"{args['env']}-{b}x{b}"
+        run_test(args) 
+
+    # --- Fractal Expansion 3^4, 9^2 ---
+    args = copy.deepcopy(base_args)
+    args["replay_buffer_type"] = "fractal_symmetry_replay_buffer"
+    args["branch_method"] = "fractal"
+    args["split_method"] = "time"
+    args["alpha"] = 1
+
+    for b, d in ((3, 4), (9, 2)):
+        args["branching_factor"] = b
+        args["max_depth"] = d
+        args["exp_name"] = f"{args['env']}-{b}^{d}"
+        run_test(args) 
 
 if __name__ == "__main__":
     app.run(main)
