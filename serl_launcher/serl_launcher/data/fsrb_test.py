@@ -16,6 +16,7 @@ flags.DEFINE_float("workspace_width", 0.5, "workspace width in meters")
 flags.DEFINE_integer("max_depth", 4, "Maximum level of depth") # For fractal_branch only
 flags.DEFINE_integer("branching_factor", 3, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch only
 flags.DEFINE_integer("starting_branch_count", 1, "Initial number of transforms per dimension (x,y)") # For constant_branch only
+flags.DEFINE_integer("start_num",81, "Initila number of branch on the first depth") # For Fractal Cntraction
 
 def main(_):
 
@@ -37,6 +38,8 @@ def main(_):
         y_obs_idx= y_obs_idx,
         max_depth=FLAGS.max_depth,
         branching_factor=FLAGS.branching_factor,
+        start_num = FLAGS.start_num
+
     )
 
     observation, info = env.reset()
@@ -66,7 +69,7 @@ def main(_):
 
     # branch() tests
 
-    ## fractal
+    ## fractal -Associative Expansions
 
     replay_buffer.branching_factor = 3
 
@@ -95,6 +98,42 @@ def main(_):
     del result, expected
 
     print("\033[32mTEST PASSED \033[0m fractal_branch() tests passed")
+
+
+    # fractal contraction
+    replay_buffer.branching_factor = 3
+
+    replay_buffer.current_depth = 1
+    result = replay_buffer.fractal_contraction()
+    expected = 81
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 2
+    result = replay_buffer.fractal_contraction()
+    expected = 27
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 3
+    result = replay_buffer.fractal_contraction()
+    expected = 9
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 4
+    result = replay_buffer.fractal_contraction()
+    expected = 3
+    assert result == expected, f"\033[31mTEST FAILED\033[0m fractal_branch() test failed (expected {expected} but got {result})"
+    
+    replay_buffer.current_depth = 0
+
+    del result, expected
+
+    print("\033[32mTEST PASSED \033[0m fractal_contraction() tests passed")
+
+
+
+
+
+
 
     # split() tests
     ## time
@@ -144,14 +183,8 @@ def main(_):
     del result, expected, initial_size, final_size
 
 
-
-
     print("\033[32mTEST PASSED \033[0m insert() tests passed")
 
-
-
-
-    print("\033[32mTEST PASSED \033[0m insert() tests passed")
         
     print("\nfinished!\n")
 

@@ -49,6 +49,10 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.branching_factor=kwargs["branching_factor"]
                 del kwargs["branching_factor"]
 
+                assert "start_num" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "start_num")
+                self.start_num=kwargs["start_num"]
+                del kwargs["start_num"]
+
                 self.branch = self.fractal_branch
 
             # case "linear":
@@ -81,6 +85,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         self.timestep = 0
         self.current_depth = 0
         self.branch_index = [workspace_width/2]
+        self.start_num = kwargs["start_num"]
 
         for k in kwargs.keys():
             print(f"\033[33mWARNING \033[0m argument \"{k}\" not used")
@@ -116,6 +121,14 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
     def fractal_branch(self):
         # return a new number of branches = branching_factor ^ depth
         return self.branching_factor ** self.current_depth
+    
+    def fractal_contraction(self):
+        # return 
+        b = self.branching_factor  
+        d = self.current_depth
+        top_b = self.start_num
+
+        return int( top_b/( b**(d-1) ))
     
     # REQUIRES TESTING
     # def constant_branch(self):
