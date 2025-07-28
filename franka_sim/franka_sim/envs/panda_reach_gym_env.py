@@ -37,6 +37,7 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
         render_spec: GymRenderingSpec = GymRenderingSpec(),
         render_mode: Literal["rgb_array", "human"] = None,
         image_obs: bool = False,
+        demo: str = "None",
     ):
         self._action_scale = action_scale
 
@@ -148,6 +149,8 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
         if self.render_mode:
             self._viewer.render(self.render_mode)
 
+        self.demo = demo
+
     def reset(
         self, seed=None, **kwargs
     ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
@@ -217,9 +220,11 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
         obs = self._compute_observation()
         rew = self._compute_reward()
 
-        # For reach environment, finger 
-        if rew >= 0.82: # Demo ERROR_THRESHOLD @ 0.3->0.675; ERROR_THRESHOLD @ 0.2->0.55
-            terminated = True
+        # For demo reach environment, finger  --- THIS SHOULD NEVER BE MERGED TO OTHER BRANCHES AFFECTING REGULAR USE OF ENVIRONMENTS. ONLY FOR DEMOS.
+        # IF ACCIDENTALLY MERGED, IT WILL REDUCE PERFORMANCE OF THE AGENT.
+        if self.demo == "franka_reach_demo":
+            if rew >= 0.85: # Demo ERROR_THRESHOLD @ 0.3->0.675; ERROR_THRESHOLD @ 0.2->0.55
+                terminated = True
         else:
             # Check if the time limit is exceeded.
             if self._time_limit is not None:

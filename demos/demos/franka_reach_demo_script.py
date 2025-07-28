@@ -4,7 +4,11 @@ Scripted Controller for Franka FR3 Robot - Demonstration Data Generation
 This script implements a scripted controller for generating expert demonstration data 
 for Deep Reinforcement Learning (DRL) algorithms using the Franka FR3 robot in a 
 pick-and-place task. The generated data serves as bootstrapping demonstrations for 
-training RL agents with stable-baselines3.
+training RL agents with your desired algorithm.
+
+Note that different error thresholds lead to different rewards and in turn done values. 
+Adjust carefully. Depending on the the controller and clipping scaling (ACTION_MAX) settings, you may get very different behaviors. 
+The current program clips actions and leads to small increments that allows to more precise movements and close the error. 
 
 The controller uses a 4-phase hierarchical approach:
 1. Approach Object (move gripper above object)
@@ -20,6 +24,7 @@ import os
 import numpy as np
 import gym
 from time import sleep, perf_counter
+from datetime import datetime
 
 import franka_sim 
 import franka_sim.envs.panda_reach_gym_env as panda_reach_env
@@ -42,7 +47,7 @@ Kp = 10.0      # Values between 20 and 24 seem to be somewhat stable for Kv = 24
 Kv = 10.0 
 
 ACTION_MAX = 10 # Maximum action value for clipping actions
-ERROR_THRESHOLD = 0.01 # Note!! When this number is changed, the way rewards are computed in the PandaReachCubeEnv.step() L220 must also be changed such that done=True only at the end of a successfull run.
+ERROR_THRESHOLD = 0.008 # Note!! When this number is changed, the way rewards are computed in the PandaReachCubeEnv.step() L220 must also be changed such that done=True only at the end of a successfull run.
 
 # Number of demonstration episodes to generate
 NUM_DEMOS = 20
@@ -161,7 +166,7 @@ def store_episode_data(episode_data):
     truncateds.append(episode_data["truncateds"])
     dones.append(episode_data["dones"])    
 
-def update_state_info(episode_data, time_step, dt, error):
+def update_state_info(episode_data, time_step, dt, error, reward):
     """
     Update and return the current state information. Always get the latest entry with [-1]
     
@@ -170,6 +175,7 @@ def update_state_info(episode_data, time_step, dt, error):
         time_step (int): Current time step in the episode.
         dt (float): Current time step in the episode.
         error (np.ndarray): Current error vector between object and end-effector positions. 
+        reward (float): Current reward value for the action taken.
 
     Returns:
         object_pos (np.ndarray): Current position of the object in the environment.
@@ -185,13 +191,13 @@ def update_state_info(episode_data, time_step, dt, error):
 
     # Print debug information
     print(
-        f"Time Step: {time_step}, Error: {np.linalg.norm(error):.4f}, "
+        f"Step: {time_step}, ErrNorm: {np.linalg.norm(error):.4f}, "
         f"bot_pos: {np.array2string(current_pos, precision=3)}, "
         f"obj_pos: {np.array2string(object_pos, precision=3)}, "
         f"fgr_pos: {np.array2string(gripper_pos, precision=2)}, "
         f"err:     {np.array2string(error, precision=3)}, "
         f"Action:  {np.array2string(episode_data['actions'][-1], precision=3)}, "
-        f"dt:      {dt: .4f}"
+        f"dt: {dt:.4f}, reward: {reward:.3f}"
     )
     
     
@@ -322,7 +328,7 @@ def demo(env, lastObs):
         store_transition_data(episode_data, new_obs, reward, action, info, terminated, truncated, done)
 
         # Update and print state information
-        object_pos,gripper_pos,cur_pos,cur_vel = update_state_info(episode_data, time_step, dt, error)
+        object_pos,gripper_pos,cur_pos,cur_vel = update_state_info(episode_data, time_step, dt, error,reward)
 
         # Update error for next iteration
         error, derror = compute_error(object_pos, cur_pos, prev_error, dt)
@@ -331,8 +337,8 @@ def demo(env, lastObs):
         time_step += 1
 
         # Sleep
-        if DEBUG:
-            sleep(0.25)  # Activated when DEBUG is True for better visualization.        
+        #if DEBUG:
+        sleep(0.25)  # Activated when DEBUG is True for better visualization.        
 
     # Store complete episode data in global lists only if we succeeded (avoid bad demos)
     store_episode_data(episode_data)
@@ -413,6 +419,10 @@ def main():
     fileName = "data_" + robot + "_" + task
     fileName += "_" + initStateSpace
     fileName += "_" + str(num_demos)
+    
+    # Add timestamp to filename for uniqueness
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    fileName += "_" + timestamp
     fileName += ".npz"
 
     # Build a filename in that same directory
@@ -422,18 +432,19 @@ def main():
     os.makedirs(script_dir, exist_ok=True)
     
     # Save collected data to compressed numpy NPZ file
-    # Set acs,obs,info as keys in dict 
-    np.savez_compressed(out_path, 
-                        acs = actions, 
-                        obs = observations, 
-                        rewards = rewards,
-                        info = infos,
-                        terminateds = terminateds,
-                        truncateds = truncateds,
-                        dones = dones,
-                        transition_ctr = transition_ctr,
-                        num_demos = num_demos
-                        )
+    # Set acs,obs,info as keys in dict and values as np.arrays of type objects. This allows you to handle different lengths.
+    np.savez_compressed(
+        out_path,
+        acs=np.array(actions, dtype=object),
+        obs=np.array(observations, dtype=object),
+        rewards=np.array(rewards, dtype=object),
+        info=np.array(infos, dtype=object),
+        terminateds=np.array(terminateds, dtype=object),
+        truncateds=np.array(truncateds, dtype=object),
+        dones=np.array(dones, dtype=object),
+        transition_ctr=transition_ctr,
+        num_demos=num_demos
+    )
     
     print(f"Data saved to {fileName}.")
     print(f"Total successful demos: {demo_ctr}/{num_demos}")

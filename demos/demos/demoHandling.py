@@ -27,11 +27,12 @@ class DemoHandling:
     """
     def __init__(
         self,
+        ds: QueuedDataStore,
         demo_dir: str = '/data/data/serl/demos',
         file_name: str = 'data_franka_reach_random_20.npz'
     ):
 
-        self.debug = False  # Set to True for debugging purposes
+        self.debug = True  # Set to True for debugging purposes
         self.demo_dir = demo_dir
         self.transition_ctr = 0  # Global counter for transitions across all episodes
 
@@ -54,12 +55,28 @@ class DemoHandling:
         Returns the total number of transitions counted in the demo data.
         """
         return self.data["transition_ctr"] if "transition_ctr" in self.data else 0
+    
+    def get_num_demos(self):
+        """
+        Returns the total number of demonstrations in the demo data.
+        """
+        return self.data["num_demos"] if "num_demos" in self.data else 0
 
     def insert_data_to_buffer(self,data_store: QueuedDataStore): 
         """
         Load a raw Gymnasium-style .npz of expert episodes into data_store.
         The .npz file must contain arrays named 'obs', 'acs', 'rewards',
         'terminateds', 'truncateds', 'info', and optionally 'dones'.
+        Each episode is processed, and transitions are inserted into the data_store.
+        Inserted transitions in data store will remain in the data_store as pointers
+
+        Parameters
+        ----------
+        data_store : QueuedDataStore    
+
+        Returns
+        -------
+        None
         """
         
         obs_buffer   = self.data['obs']         # shape (N, T+1, ...)
@@ -68,10 +85,18 @@ class DemoHandling:
         term_buffer  = self.data['terminateds'] # shape (N, T)
         trunc_buffer = self.data['truncateds']  # shape (N, T)
         info_buffer  = self.data['info']        # shape (N, T)
-        done_buffer  = self.data.get('dones', term_buffer | trunc_buffer)
+        done_buffer  = self.data['dones']        # shape (N, T) #.get('dones', term_buffer | trunc_buffer)
 
-        num_demos = obs_buffer.shape[0]
+        num_demos = self.get_num_demos()
+        if num_demos == 0:
+            raise ValueError("No demonstrations found in the provided .npz file.")
+        
+        num_transitions = self.get_num_transitions()
+        if num_transitions == 0:
+            raise ValueError("No transitions found in the provided .npz file.")
 
+
+        # Extract the number of episodes and transitions
         for ep in range(num_demos):
             ep_obs   = obs_buffer[ep]
             ep_acts  = act_buffer[ep]
@@ -91,7 +116,13 @@ class DemoHandling:
                 # masks will be created right before insert below
 
                 if self.debug:
-                    print(f"Demo {ep}, Step {t}: Obs={obs_t}, Action={a_t}, Reward={r_t}, Done={done_t}")
+                    np.set_printoptions(precision=3, suppress=True)
+
+                    print(f"Demo {ep:2}, Step {t:3} \n "
+                        f"Obs: [{obs_t[0]:.2f} {obs_t[1]:.2f} {obs_t[2]:.2f}] \n "
+                        f"Action: [{a_t[0]:.2f} {a_t[1]:.2f} {a_t[2]:.2f}] \n "
+                        f"Reward: {r_t:.2f} \n "
+                        f"Done: {done_t}")
 
                 data_store.insert(
                     dict(
@@ -104,18 +135,18 @@ class DemoHandling:
                     )
                 )
 
-        print(f"Loaded {num_demos} episodes from '{self.demo_npz_path}' ")
+        print(f"Loaded a total of {num_transitions} from {num_demos} episodes from '{self.demo_npz_path}' ")
 
 
-# if __name__ == "__main__":
-#     # create your datastore; here we use a QueuedDataStore with capacity 2000
-#     ds = QueuedDataStore(2000)
-#     handler = DemoHandling(ds,
-#                            demo_dir='/data/data/serl/demos',
-#                            file_name='data_franka_reach_random_20.npz')
+if __name__ == "__main__":
+    # create your datastore; here we use a QueuedDataStore with capacity 2000
+    ds = QueuedDataStore(2000)
+    handler = DemoHandling(ds,
+                           demo_dir='/data/data/serl/demos',
+                           file_name='data_franka_reach_random_20.npz')
     
-#     # Idenitfy the total number of transitions in the datastore
-#     print(f'We have {handler.data["transition_ctr"]} transitions in the datastore.')
+    # Idenitfy the total number of transitions in the datastore
+    print(f'We have {handler.data["transition_ctr"]} transitions in the datastore.')
     
-#     # Load the demo data into the data_store
-#     handler.insert_data_to_buffer()
+    # Load the demo data into the data_store
+    handler.insert_data_to_buffer(ds)
