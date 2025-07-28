@@ -5,6 +5,7 @@ __all__ = [
     "GymRenderingSpec",
 ]
 
+# Register environments from franka_sim.envs where specific classes are found in the PandaXXX.py scripts
 from gym.envs.registration import register
 
 register(
@@ -20,7 +21,7 @@ register(
 )
 register(
     id="PandaReachCube-v0",
-    entry_point="franka_sim.envs:PandaReachCubeGymEnv",
+    entry_point="franka_sim.envs:PandaReachCubeGymEnv", 
     max_episode_steps=100,
 )
 # register(

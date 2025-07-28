@@ -57,6 +57,17 @@ flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
 flags.DEFINE_integer("checkpoint_period", 0, "Period to save checkpoints.")
 flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
 
+# flags for replay buffer
+flags.DEFINE_string("replay_buffer_type", "replay_buffer", "Which type of replay buffer to use")
+flags.DEFINE_string("branch_method", None, "Method for determining number of transforms per dimension (x,y)")
+flags.DEFINE_string("split_method", None, "Method for determining whether to change the number of transforms per dimension (x,y)") # Remember to default None
+flags.DEFINE_float("workspace_width", None, "Workspace width in meters")
+flags.DEFINE_integer("max_depth", None, "Maximum layers of depth")
+flags.DEFINE_integer("branching_factor", None, "Rate of change of number of transforms per dimension (x,y)")
+flags.DEFINE_integer("starting_branch_count", None, "Initial number of transformations per dimension (x,y)")
+flags.DEFINE_integer("alpha", None, "placeholder")
+
+
 flags.DEFINE_boolean(
     "debug", False, "Debug mode."
 )  # debug mode will disable wandb logging
@@ -93,7 +104,7 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
 
     eval_env = gym.make(FLAGS.env)
     #if FLAGS.env == "PandaPickCube-v0":
-    eval_env = gym.wrappers.FlattenObservation(eval_env)
+    eval_env = gym.wrappers.FlattenObservation(eval_env) ## Note!! 
     eval_env = RecordEpisodeStatistics(eval_env)
 
     obs, _ = env.reset()
@@ -125,7 +136,8 @@ def actor(agent: SACAgent, data_store, env, sampling_rng):
             reward = np.asarray(reward, dtype=np.float32)
 
             running_return += reward
-
+            
+            # Insert dict into actor's two deques... learner will read from these
             data_store.insert(
                 dict(
                     observations=obs,
@@ -288,13 +300,18 @@ def main(_):
             env,
             capacity=FLAGS.replay_buffer_capacity,
             rlds_logger_path=FLAGS.log_rlds_path,
-            type="fractal_symmetry_replay_buffer",
-            branch_method="test",
-            split_method="test",
-            workspace_width=0.5,
-            x_obs_idx=np.array([0,7]),
-            y_obs_idx=np.array([1,8]),
+            type=FLAGS.replay_buffer_type,
+            branch_method=FLAGS.branch_method,
+            split_method=FLAGS.split_method,
+            starting_branch_count=FLAGS.starting_branch_count,
+            workspace_width=FLAGS.workspace_width,
+            x_obs_idx=np.array([0,4]),
+            y_obs_idx=np.array([1,5]),
             preload_rlds_path=FLAGS.preload_rlds_path,
+            alpha=FLAGS.alpha,
+            branching_factor=FLAGS.branching_factor,
+            max_depth=FLAGS.max_depth,
+            max_traj_length=FLAGS.max_traj_length,
         )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={
