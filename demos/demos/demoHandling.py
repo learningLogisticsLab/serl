@@ -27,7 +27,6 @@ class DemoHandling:
     """
     def __init__(
         self,
-        ds: QueuedDataStore,
         demo_dir: str = '/data/data/serl/demos',
         file_name: str = 'data_franka_reach_random_20.npz'
     ):
@@ -138,15 +137,16 @@ class DemoHandling:
         print(f"Loaded a total of {num_transitions} from {num_demos} episodes from '{self.demo_npz_path}' ")
 
 
-if __name__ == "__main__":
-    # create your datastore; here we use a QueuedDataStore with capacity 2000
-    ds = QueuedDataStore(2000)
-    handler = DemoHandling(ds,
-                           demo_dir='/data/data/serl/demos',
-                           file_name='data_franka_reach_random_20.npz')
+# if __name__ == "__main__":
+#     # Instantiate a DemoHandling object
+#     handler = DemoHandling(demo_dir='/data/data/serl/demos',
+#                            file_name='data_franka_reach_random_20.npz')
     
-    # Idenitfy the total number of transitions in the datastore
-    print(f'We have {handler.data["transition_ctr"]} transitions in the datastore.')
+#     # Idenitfy the total number of transitions in the datastore
+#     print(f'We have {handler.data["transition_ctr"]} transitions in the datastore.')
     
-    # Load the demo data into the data_store
-    handler.insert_data_to_buffer(ds)
+#     # Simulate SERL's datastore creation w/ capacity 2000
+#     ds = QueuedDataStore(2000)
+
+#     # Insert the demo data into the datastore
+#     handler.insert_data_to_buffer(ds)
