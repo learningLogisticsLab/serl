@@ -2,25 +2,12 @@ import gym.wrappers
 import numpy as np
 import gym
 from serl_launcher.utils.launcher import make_replay_buffer
-from serl_launcher.data.fractal_symmetry_replay_buffer import FractalSymmetryReplayBuffer
-from absl import app, flags
+from absl import app
 import franka_sim
+from datetime import datetime
 # import pandas as pd
 
-FLAGS = flags.FLAGS
-
-flags.DEFINE_integer("capacity", 10000000, "Replay buffer capacity.")
-flags.DEFINE_string("branch_method", "test", "Method for determining the number of transforms per dimension (x,y)")
-flags.DEFINE_string("split_method", "test", "Method for determining whether to change the number of transforms per dimension (x,y)")
-flags.DEFINE_float("workspace_width", 0.5, "workspace width in meters")
-flags.DEFINE_integer("max_depth", 4, "Maximum level of depth") # For fractal_branch only
-flags.DEFINE_integer("branching_factor", 3, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch only
-flags.DEFINE_integer("starting_branch_count", 1, "Initial number of transforms per dimension (x,y)") # For constant_branch only
-
 def main(_):
-
-    x_obs_idx = np.array([0, 4])
-    y_obs_idx = np.array([1, 5])
 
     # Initialize replay buffer
     env = gym.make("PandaReachCube-v0")
@@ -29,16 +16,19 @@ def main(_):
     replay_buffer = make_replay_buffer(
         env,
         type="fractal_symmetry_replay_buffer",
-        capacity=FLAGS.capacity,
-        split_method=FLAGS.split_method,
-        branch_method=FLAGS.branch_method,
-        workspace_width=FLAGS.workspace_width,
-        x_obs_idx=x_obs_idx,
-        y_obs_idx= y_obs_idx,
-        max_depth=FLAGS.max_depth,
-        branching_factor=FLAGS.branching_factor,
+        capacity=1000000,
+        split_method="time",
+        branch_method="fractal",
+        workspace_width=0.5,
+        x_obs_idx=np.array([0, 4]),
+        y_obs_idx= np.array([1, 5]),
+        alpha=1,
+        max_traj_length=20,
+        max_depth=4,
+        branching_factor=3,
+        starting_branch_count=1,
     )
-
+        
     observation, info = env.reset()
     action = env.action_space.sample()
     next_observation, reward, terminated, truncated, info = env.step(action)
@@ -51,8 +41,57 @@ def main(_):
         dones=truncated or terminated,
     )
 
-    del env, observation, next_observation, action, reward, truncated, terminated, info, y_obs_idx, x_obs_idx, _
+    del env, observation, next_observation, action, reward, truncated, terminated, info, _
 
+    # temp testing
+
+    # replay_buffer.branch =replay_buffer.constant_branch
+    # replay_buffer.split =replay_buffer.constant_split
+
+    # for b in (1, 3, 9, 27):
+    #     avg = 0
+    #     high = 0
+    #     low = 10
+    #     replay_buffer.starting_branch_count = b
+    #     for _ in range(50):
+    #         start=datetime.now()
+    #         replay_buffer.insert(data_dict)
+    #         duration=(datetime.now() - start).total_seconds()
+    #         avg += duration
+    #         if duration < low:
+    #             low = duration
+    #         if duration > high:
+    #             high = duration
+        
+    #     avg = avg/50
+    #     print(f"Test: {b}x{b}\n\nhigh: {high:.5f}\nlow: {low:.5f}\naverage: {avg:.5f}\n\n")
+
+    # replay_buffer.branch =replay_buffer.fractal_branch
+    # replay_buffer.split =replay_buffer.time_split
+
+    # avg = 0
+    # high = 0
+    # low = 10
+    # for b, d in ((3,4),(9,2)):
+    #     for a in (0.25, 0.5, 0.75, 1):
+    #         avg = 0
+    #         high = 0
+    #         low = 10
+    #         replay_buffer.branching_factor=b
+    #         replay_buffer.max_depth=d
+    #         replay_buffer.current_depth=0
+    #         for i in range(20):
+    #             start=datetime.now()
+    #             replay_buffer.insert(data_dict)
+    #             duration=(datetime.now() - start).total_seconds()
+    #             avg += duration
+    #             if duration < low:
+    #                 low = duration
+    #             if duration > high:
+    #                 high = duration
+
+    #         avg = avg/50
+    #         print(f"Test: {b}^{d} at alpha={a}\n\nhigh: {high:.5f}\nlow: {low:.5f}\naverage: {avg:.5f}\n\n")
     # transform() test
 
     expected = np.copy(data_dict["observations"]) * 2
@@ -127,10 +166,29 @@ def main(_):
     expected = False
     assert result == expected, f"\033[31mTEST FAILED\033[0m split() test failed (expected {expected} but got {result})"
 
+    del result, expected
 
     print("\033[32mTEST PASSED \033[0m time_split() test passed")
 
     # insert() tests
+    # insert() tests
+    initial_size = len(replay_buffer.dataset_dict['observations'][0]) * replay_buffer._insert_index % len(replay_buffer.dataset_dict['observations'])
+
+    replay_buffer.insert(data_dict)
+    final_size = len(replay_buffer.dataset_dict['observations'][0]) * replay_buffer._insert_index % len(replay_buffer.dataset_dict['observations'])
+    
+    result = final_size > initial_size
+    expected = True
+    assert result == expected, f"\033[31mTEST FAILED\033[0m insert() test failed (expected buffer size to increase from {initial_size} to {final_size})"
+    del result, expected, initial_size, final_size
+
+
+
+
+    print("\033[32mTEST PASSED \033[0m insert() tests passed")
+
+
+
 
     print("\033[32mTEST PASSED \033[0m insert() tests passed")
         
