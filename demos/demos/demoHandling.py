@@ -31,7 +31,7 @@ class DemoHandling:
         file_name: str = 'data_franka_reach_random_20.npz'
     ):
 
-        self.debug = True  # Set to True for debugging purposes
+        self.debug = False  # Set to True for debugging purposes
         self.demo_dir = demo_dir
         self.transition_ctr = 0  # Global counter for transitions across all episodes
 
@@ -53,13 +53,13 @@ class DemoHandling:
         """
         Returns the total number of transitions counted in the demo data.
         """
-        return self.data["transition_ctr"] if "transition_ctr" in self.data else 0
+        return int(self.data["transition_ctr"]) if "transition_ctr" in self.data else 0
     
     def get_num_demos(self):
         """
         Returns the total number of demonstrations in the demo data.
         """
-        return self.data["num_demos"] if "num_demos" in self.data else 0
+        return int(self.data["num_demos"]) if "num_demos" in self.data else 0
 
     def insert_data_to_buffer(self,data_store: QueuedDataStore): 
         """

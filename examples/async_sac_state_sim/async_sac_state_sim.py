@@ -120,29 +120,30 @@ def actor(agent: SACAgent, data_store, env, sampling_rng, demos_handler=None):
     # training loop
     timer = Timer()
     running_return = 0.0
+
+    # Load demos: handler.run will insert all transition demo data into the data store.
+    if FLAGS.load_demos:
+        with timer.context("sample and step into env with loaded demos"):
+            
+            # Insert complete demonstration into the data store 
+            print(f"Inserting {demos_handler.data['transition_ctr']} transitions into the data store.")
+            demos_handler.insert_data_to_buffer(data_store)
+            FLAGS.random_steps = 0  # Set random steps to 0 since we have demo data
+    # For subsequent steps, sample actions from the agent
     for step in tqdm.tqdm(range(FLAGS.max_steps), dynamic_ncols=True):
         timer.tick("total")
 
-        # Load demos: handler.run will insert all transition demo data into the data store.
-        if FLAGS.load_demos:
-            with timer.context("sample and step into env with loaded demos"):
-              
-                # Insert complete demonstration into the data store 
-                print(f"Inserting {demos_handler.data['transition_ctr']} transitions into the data store.")
-                demos_handler.insert_data_to_buffer(data_store)
-
-        else:
-            with timer.context("sample_actions"):
-                if step < FLAGS.random_steps:
-                    actions = env.action_space.sample()
-                else:
-                    sampling_rng, key = jax.random.split(sampling_rng)
-                    actions = agent.sample_actions(
-                        observations=jax.device_put(obs),
-                        seed=key,
-                        deterministic=False,
-                    )
-                    actions = np.asarray(jax.device_get(actions))
+        with timer.context("sample_actions"):
+            if step < FLAGS.random_steps:
+                actions = env.action_space.sample()
+            else:
+                sampling_rng, key = jax.random.split(sampling_rng)
+                actions = agent.sample_actions(
+                    observations=jax.device_put(obs),
+                    seed=key,
+                    deterministic=False,
+                )
+                actions = np.asarray(jax.device_get(actions))
 
             # Step environment
             with timer.context("step_env"):
@@ -311,7 +312,7 @@ def main(_):
 
     # Demo Data
     if FLAGS.load_demos:
-        print_green("loading demo data")
+        print_green("Setting demo parameters")
         # Create a handler for the demo data
         demos_handler = DemoHandling(
             demo_dir=FLAGS.demo_dir,
@@ -321,10 +322,18 @@ def main(_):
         # 1. Modify actor data_store size
         # Extract number of demo transitions
         demo_transitions = demos_handler.get_num_transitions()
-        qds_size = demo_transitions + 1000  # the queue size on the actor
+        
+        if demo_transitions > 2000:
+            qds_size = demo_transitions + 1000  # Increment the queue size on the actor
+        else:
+           qds_size = 2000  # the original queue size on the actor
 
         # 2. Modify training starts (since we have good data)
-        FLAGS.training_starts = 0
+        FLAGS.training_starts = 1
+
+    else:
+        demos_handler = None        
+        qds_size = 2000  # the original queue size on the actor
 
 
     if FLAGS.learner:
@@ -376,7 +385,7 @@ def main(_):
 
         # actor loop
         print_green("starting actor loop")
-        actor(agent, data_store, env, sampling_rng,demos_handler)
+        actor(agent, data_store, env, sampling_rng, demos_handler)
 
     else:
         raise NotImplementedError("Must be either a learner or an actor")
