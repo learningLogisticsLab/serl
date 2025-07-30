@@ -17,8 +17,8 @@ export CHECKPOINT_DIR="/data/fsrb_testing/checkpoints-$TIMESTAMP" && \
 python async_sac_state_sim.py "$@"\
     --learner \
     --env PandaReachCube-v0 \
-    --exp_name PandaReachCube-v0_state_sim_demos_27^1_batch_2048_replay_8M_utd_32 \
-    --replay_buffer_type replay_buffer \
+    --exp_name PandaReachCube-v0_state_sim_3d_demos_5_const_27^1_batch_256_replay_1M_utd_8 \
+    --replay_buffer_type fractal_symmetry_replay_buffer \
     --max_steps 50_000 \
     --training_starts 1000 \
     --random_steps 1000 \
@@ -26,17 +26,17 @@ python async_sac_state_sim.py "$@"\
     --batch_size 2048 \
     --replay_buffer_capacity 8_000_000 \
     --save_model True \
-    --load_demos \
-    --demo_dir /data/data/serl/demos \
-    --file_name data_franka_reach_random_5_2.npz \    
     --branch_method constant \
     --split_method constant \
     --workspace_width 0.5 \
-    --starting_branch_count 1 \
+    --load_demos \
+    --demo_dir /data/data/serl/demos \
+    --file_name data_franka_reach_random_5_2.npz \
+    # --starting_branch_count 1 \  
     # --max_traj_length 100 \
+    # --max_depth 4 \    
     # --start_num 81 \
     # --alpha 1 \
-    # --max_depth 4 \
     # --branching_factor 3 \
     # --checkpoint_period 10000 \
     # --checkpoint_path "$CHECKPOINT_DIR" \
