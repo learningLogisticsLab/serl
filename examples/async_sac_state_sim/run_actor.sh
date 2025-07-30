@@ -28,11 +28,11 @@ python async_sac_state_sim.py \
     --save_model True \
     --branch_method constant \
     --split_method constant \
+    --starting_branch_count 27 \
     --workspace_width 0.5 \
     --load_demos \
     --demo_dir /data/data/serl/demos \
     --file_name data_franka_reach_random_5_2.npz \
-    # --starting_branch_count 1 \  
     # --max_traj_length 100 \
     # --max_depth 4 \
     # --start_num 81 \

@@ -143,9 +143,9 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         return int( top_b/( b**(d-1) ))
     
     # REQUIRES TESTING
-    # def constant_branch(self):
-    #     # return current number of branches
-    #     return self.current_branch_count
+    def constant_branch(self):
+        # return current number of branches
+        return self.current_branch_count
     
     # REQUIRES TESTING
     # def linear_branch(self):
