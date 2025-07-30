@@ -76,11 +76,9 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
 
                 # self.branch = self.linear_branch
             case "constant":
-                raise NotImplementedError("constant branch method is not yet implemented")
-                # TODO: Implement constant branch method
-                # assert "starting_branch_count" in kwargs.keys(), self._handle_bad_args_("branch_method", branch_method, "starting_branch_count")
-                # self.current_branch_count = kwargs["starting_branch_count"]
-                # del kwargs["starting_branch_count"]
+                assert "starting_branch_count" in kwargs.keys(), self._handle_bad_args_("branch_method", branch_method, "starting_branch_count")
+                self.current_branch_count = kwargs["starting_branch_count"]
+                del kwargs["starting_branch_count"]
 
                 self.branch = self.constant_branch
             case "test":
