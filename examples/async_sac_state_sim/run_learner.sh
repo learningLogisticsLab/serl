@@ -1,18 +1,22 @@
 #!/bin/bash
 export XLA_PYTHON_CLIENT_PREALLOCATE=false && \
-export XLA_PYTHON_CLIENT_MEM_FRACTION=.5 && \
+export XLA_PYTHON_CLIENT_MEM_FRACTION=.2 && \
 
 python async_sac_state_sim.py "$@"\
     --learner \
     --env PandaReachCube-v0 \
-    --exp_name reach-baseline \
+    --exp_name PandaReachCube-v0_async_sac_state_demos_5_replay_1M_batch_2048_utd_32 \
     --replay_buffer_type replay_buffer \
-    --max_steps 80000 \
+    --max_steps 50_000 \
     --training_starts 1000 \
-    --critic_actor_ratio 8 \
-    --batch_size 256 \
-    --replay_buffer_capacity 100000 \
+    --random_steps 1000 \
+    --critic_actor_ratio 32 \
+    --batch_size 2048 \
+    --replay_buffer_capacity 1_000_000 \
     --save_model True \
+    --load_demos \
+    --demo_dir /data/data/serl/demos \
+    --file_name data_franka_reach_random_5_2.npz \    
     # --branch_method fractal \
     # --split_method time \
     # --starting_branch_count 1 \
