@@ -10,13 +10,15 @@ import franka_sim
 FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("capacity", 10000000, "Replay buffer capacity.")
-flags.DEFINE_string("branch_method", "test", "Method for determining the number of transforms per dimension (x,y)")
-flags.DEFINE_string("split_method", "test", "Method for determining whether to change the number of transforms per dimension (x,y)")
+flags.DEFINE_string("branch_method", "contraction", "Method for determining the number of transforms per dimension (x,y)")
+flags.DEFINE_string("split_method", "time", "Method for determining whether to change the number of transforms per dimension (x,y)")
 flags.DEFINE_float("workspace_width", 0.5, "workspace width in meters")
 flags.DEFINE_integer("max_depth", 4, "Maximum level of depth") # For fractal_branch only
+flags.DEFINE_integer("max_steps",20000,"Maximum steps")
 flags.DEFINE_integer("branching_factor", 3, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch only
 flags.DEFINE_integer("starting_branch_count", 1, "Initial number of transforms per dimension (x,y)") # For constant_branch only
 flags.DEFINE_integer("start_num",81, "Initila number of branch on the first depth") # For Fractal Cntraction
+flags.DEFINE_integer("alpha",1,"alpha value")
 
 def main(_):
 
@@ -37,9 +39,10 @@ def main(_):
         x_obs_idx=x_obs_idx,
         y_obs_idx= y_obs_idx,
         max_depth=FLAGS.max_depth,
+        max_traj_length = 150,
         branching_factor=FLAGS.branching_factor,
-        start_num = FLAGS.start_num
-
+        start_num = FLAGS.start_num,
+        alpha = FLAGS.alpha
     )
 
     observation, info = env.reset()
