@@ -24,7 +24,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             case "time":
                 assert "max_depth" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "max_depth")
                 self.max_depth=kwargs["max_depth"]
-                del kwargs["max_depth"]
 
                 assert "max_traj_length" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "max_traj_length")
                 self.max_traj_length=kwargs["max_traj_length"]
@@ -45,34 +44,47 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         method_check = "branch_method"
         match branch_method:
             case "fractal":
+                assert "max_depth" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "max_depth")
+                self.max_depth=kwargs["max_depth"]
 
                 assert "branching_factor" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "branching_factor")
                 self.branching_factor=kwargs["branching_factor"]
-                del kwargs["branching_factor"]
+
+                assert "start_num" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "start_num")
+                self.start_num=kwargs["start_num"]
 
                 self.branch = self.fractal_branch
+            case "contraction":
+                assert "start_num" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "start_num")
+                self.start_num=kwargs["start_num"]
 
-            # case "linear":
-            #     assert "branch_count_rate_of_change" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "branch_count_rate_of_change")
-            #     self.branch_count_rate_of_change=kwargs["branch_count_rate_of_change"]
-            #     del kwargs["branch_count_rate_of_change"]
+                # Add branching_factor for contraction method
+                assert "branching_factor" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "branching_factor")
+                self.branching_factor = kwargs["branching_factor"]
 
-            #     assert "starting_branch_count" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "starting_branch_count")
-            #     self.current_branch_count = kwargs["starting_branch_count"]
-            #     del kwargs["starting_branch_count"]
+                self.branch = self.fractal_contraction
+            case "linear":
+                raise NotImplementedError("linear branch method is not yet implemented")
+                # TODO: Implement constant branch method
+                # assert "branch_count_rate_of_change" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "branch_count_rate_of_change")
+                # self.branch_count_rate_of_change=kwargs["branch_count_rate_of_change"]
+                # del kwargs["branch_count_rate_of_change"]
 
-            #     self.branch = self.linear_branch
+                # assert "starting_branch_count" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "starting_branch_count")
+                # self.current_branch_count = kwargs["starting_branch_count"]
+                # del kwargs["starting_branch_count"]
 
+                # self.branch = self.linear_branch
             case "constant":
-                assert "starting_branch_count" in kwargs.keys(), self._handle_bad_args_("branch_method", branch_method, "starting_branch_count")
-                self.current_branch_count = kwargs["starting_branch_count"]
-                del kwargs["starting_branch_count"]
+                raise NotImplementedError("constant branch method is not yet implemented")
+                # TODO: Implement constant branch method
+                # assert "starting_branch_count" in kwargs.keys(), self._handle_bad_args_("branch_method", branch_method, "starting_branch_count")
+                # self.current_branch_count = kwargs["starting_branch_count"]
+                # del kwargs["starting_branch_count"]
 
                 self.branch = self.constant_branch
-
             case "test":
                 self.branch = self.test_branch
-
             case _:
                 raise ValueError("incorrect value passed to branch_method")
         
@@ -81,6 +93,8 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         self.workspace_width = workspace_width
         self.timestep = 0
         self.current_depth = 0
+        self.branch_index = [workspace_width/2]
+        self.start_num = kwargs["start_num"]
 
         self.branch_index = np.empty(self.current_branch_count, dtype=np.float32)
         constant = self.workspace_width/(2 * self.current_branch_count)
@@ -122,9 +136,18 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         # return a new number of branches = branching_factor ^ depth
         return self.branching_factor ** self.current_depth
     
-    def constant_branch(self):
-        # return current number of branches
-        return self.current_branch_count
+    def fractal_contraction(self):
+        # return 
+        b = self.branching_factor  
+        d = self.current_depth
+        top_b = self.start_num
+
+        return int( top_b/( b**(d-1) ))
+    
+    # REQUIRES TESTING
+    # def constant_branch(self):
+    #     # return current number of branches
+    #     return self.current_branch_count
     
     # REQUIRES TESTING
     # def linear_branch(self):
@@ -184,5 +207,5 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.max_traj_length = int(self.timestep * self.alpha + self.max_traj_length * (1 - self.alpha))
             self.timestep = 0
 
-        finish = dt.now()
-        print(f"Splits: {(sector_2 - sector_1).total_seconds():.5f} : {(sector_3 - sector_2).total_seconds():.5f} : {(sector_4 - sector_3).total_seconds():.5f} : {(finish - sector_4).total_seconds():.5f}\nLaptime: {(finish - sector_1).total_seconds():.5f}")
+        # finish = dt.now()
+        # print(f"Splits: {(sector_2 - sector_1).total_seconds():.5f} : {(sector_3 - sector_2).total_seconds():.5f} : {(sector_4 - sector_3).total_seconds():.5f} : {(finish - sector_4).total_seconds():.5f}\nLaptime: {(finish - sector_1).total_seconds():.5f}")

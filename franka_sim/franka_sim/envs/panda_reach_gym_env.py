@@ -216,17 +216,7 @@ class PandaReachCubeGymEnv(MujocoGymEnv):
 
         obs = self._compute_observation()
         rew = self._compute_reward()
-
-        # For reach environment, finger 
-        if rew >= 0.55:
-            terminated = True
-        else:
-            # Check if the time limit is exceeded.
-            if self._time_limit is not None:
-                terminated = self.time_limit_exceeded()
-            else:
-                terminated = False
-
+        terminated = self.time_limit_exceeded()
         return obs, rew, terminated, False, {}
 
     def render(self):
