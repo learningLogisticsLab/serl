@@ -81,6 +81,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         self.workspace_width = workspace_width
         self.timestep = 0
         self.current_depth = 0
+        self.start_num = kwargs["start_num"]
 
         self.branch_index = np.empty(self.current_branch_count, dtype=np.float32)
         constant = self.workspace_width/(2 * self.current_branch_count)
