@@ -61,13 +61,18 @@ flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
 
 # flags for replay buffer
 flags.DEFINE_string("replay_buffer_type", "replay_buffer", "Which type of replay buffer to use")
-flags.DEFINE_string("branch_method", None, "Method for determining number of transforms per dimension (x,y)")
-flags.DEFINE_string("split_method", None, "Method for determining whether to change the number of transforms per dimension (x,y)") # Remember to default None
-flags.DEFINE_float("workspace_width", None, "Workspace width in meters")
-flags.DEFINE_integer("max_depth", None, "Maximum layers of depth")
-flags.DEFINE_integer("branching_factor", None, "Rate of change of number of transforms per dimension (x,y)")
-flags.DEFINE_integer("starting_branch_count", None, "Initial number of transformations per dimension (x,y)")
-flags.DEFINE_integer("alpha", None, "placeholder")
+flags.DEFINE_string("branch_method", None, "Method for how many branches to generate")
+flags.DEFINE_string("split_method", None, "Method for when to change number of branches generated") # Remember to default None
+flags.DEFINE_float("workspace_width", 0.5, "Workspace width in centimeters") # Remember to default None
+flags.DEFINE_integer("max_depth",None,"max_depth")
+flags.DEFINE_integer("depth", None, "Total layers of depth")
+flags.DEFINE_integer("dendrites", None, "Dendrites for fractal branching")
+flags.DEFINE_integer("timesplit_freq", None, "Frequency of splits according to time")
+flags.DEFINE_integer("branch_count_rate_of_change", None, "Rate of change for linear branching")
+flags.DEFINE_integer("starting_branch_count", 1, "Initial number of branches")
+flags.DEFINE_integer("branching_factor", None, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch and fractal_contraction
+flags.DEFINE_integer("start_num",None, "Initila number of branch on the first depth") # For Fractal Cntraction
+flags.DEFINE_integer("alpha",None,"alpha value")
 
 
 flags.DEFINE_boolean(
@@ -209,7 +214,6 @@ def learner(rng, agent: SACAgent, replay_buffer, replay_iterator):
 
     # To track the step in the training loop
     update_steps = 0
-
     def stats_callback(type: str, payload: dict) -> dict:
         """Callback for when server receives stats request."""
         assert type == "send-stats", f"Invalid request type: {type}"
@@ -345,15 +349,16 @@ def main(_):
             type=FLAGS.replay_buffer_type,
             branch_method=FLAGS.branch_method,
             split_method=FLAGS.split_method,
+            branching_factor=FLAGS.branching_factor,
             starting_branch_count=FLAGS.starting_branch_count,
             workspace_width=FLAGS.workspace_width,
+            max_traj_length=FLAGS.max_traj_length,
             x_obs_idx=np.array([0,4]),
             y_obs_idx=np.array([1,5]),
             preload_rlds_path=FLAGS.preload_rlds_path,
-            alpha=FLAGS.alpha,
-            branching_factor=FLAGS.branching_factor,
-            max_depth=FLAGS.max_depth,
-            max_traj_length=FLAGS.max_traj_length,
+            start_num = FLAGS.start_num,
+            max_depth = FLAGS.max_depth,
+            alpha = FLAGS.alpha,
         )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={

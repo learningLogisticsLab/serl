@@ -17,13 +17,15 @@ python async_sac_state_sim.py "$@"\
     --load_demos \
     --demo_dir /data/data/serl/demos \
     --file_name data_franka_reach_random_5_2.npz \    
-    # --branch_method fractal \
-    # --split_method time \
-    # --starting_branch_count 1 \
-    # --alpha 1 \
-    # --max_depth 4 \
-    # --branching_factor 3 \
-    # --workspace_width 5 \
+    --branch_method contraction \
+    --split_method time \
+    --starting_branch_count 1 \
+    --max_traj_length 100 \
+    --start_num 81 \
+    --alpha 1 \
+    --max_depth 4 \
+    --branching_factor 3 \
+    --workspace_width 0.5 \
     # --checkpoint_period 10000 \
     # --checkpoint_path "$CHECKPOINT_DIR" \
     #--debug # wandb is disabled when debug
