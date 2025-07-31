@@ -20,7 +20,7 @@ from serl_launcher.data.data_store import (
     ReplayBufferDataStore,
     FractalSymmetryReplayBufferDataStore,
     KerReplayBufferDataStore,
-    FractalKERReplayBufferDataStore,
+    FractalKerReplayBufferDataStore,
 )
 
 ##############################################################################
@@ -212,6 +212,7 @@ def make_replay_buffer(
     branch_method: str = None, # used only type=="fractal_symmetry_replay_buffer"
     split_method : str = None, # used only type=="fractal_symmetry_replay_buffer"
     workspace_width : float = None, # used only type=="fractal_symmetry_replay_buffer"
+    n_KER : int = 4, # used in ker buffers
     
     **kwargs: dict # used only type=="fractal_symmetry_replay_buffer"
 ):
@@ -273,28 +274,6 @@ def make_replay_buffer(
             rlds_logger=rlds_logger,
             kwargs=kwargs,
         )
-    elif type == "fractal_symmetry_replay_buffer":
-        replay_buffer = FractalSymmetryReplayBufferDataStore(
-            env.observation_space,
-            env.action_space,
-            capacity=capacity,
-            branch_method=branch_method,
-            split_method=split_method,
-            workspace_width=workspace_width,
-            rlds_logger=rlds_logger,
-            kwargs=kwargs,
-        )
-    elif type == "fractal_symmetry_replay_buffer":
-        replay_buffer = FractalSymmetryReplayBufferDataStore(
-            env.observation_space,
-            env.action_space,
-            capacity=capacity,
-            branch_method=branch_method,
-            split_method=split_method,
-            workspace_width=workspace_width,
-            rlds_logger=rlds_logger,
-            kwargs=kwargs,
-        )
     elif type == "ker_replay_buffer":  ### Copy of fractal_symmetry block above wth naming changes + deleting fractal specific code
         replay_buffer = KerReplayBufferDataStore(
             env.observation_space,
@@ -304,16 +283,16 @@ def make_replay_buffer(
             rlds_logger=rlds_logger,
             kwargs=kwargs,
         )
-    elif type == "FractalKER_replay_buffer":  ### Copy of fractal_symmetry block above wth naming changes + deleting fractal specific code
-        replay_buffer = FractalKERReplayBufferDataStore(
+    elif type == "fractal_ker_replay_buffer":  ### Copy of fractal_symmetry block above wth naming changes + deleting fractal specific code
+        replay_buffer = FractalKerReplayBufferDataStore(
             env.observation_space,
             env.action_space,
             capacity=capacity,
-            n_KER=n_KER,
-            rlds_logger=rlds_logger,
             branch_method=branch_method,
             split_method=split_method,
             workspace_width=workspace_width,
+            n_KER=n_KER,
+            rlds_logger=rlds_logger,
             kwargs=kwargs,
         )
     else:

@@ -13,8 +13,8 @@ from serl_launcher.data.fractal_symmetry_replay_buffer import (
 from serl_launcher.data.ker_replay_buffer import (
     KerReplayBuffer
 )
-from serl_launcher.data.fractalKER_replay_buffer import (
-    FractalKERReplayBuffer
+from serl_launcher.data.fractal_ker_replay_buffer import (
+    FractalKerReplayBuffer
 )
 from agentlace.data.data_store import DataStoreBase
 
@@ -268,17 +268,20 @@ class KerReplayBufferDataStore(KerReplayBuffer, DataStoreBase):
     def get_latest_data(self, from_id: int):
         raise NotImplementedError  # TODO
 
-class FractalKERReplayBufferDataStore(FractalKERReplayBuffer, DataStoreBase):
+class FractalKerReplayBufferDataStore(FractalKerReplayBuffer, DataStoreBase):
     def __init__(
         self,
         observation_space: gym.Space,
         action_space: gym.Space,
         capacity: int,
+        branch_method: str,
+        split_method: str,
+        workspace_width: float,
 	    n_KER: int,
         rlds_logger: Optional[RLDSLogger] = None,
         **kwargs: dict,
     ):
-        KerReplayBuffer.__init__(self, observation_space, action_space, capacity, n_KER, 0.1443)
+        FractalKerReplayBuffer.__init__(self, observation_space, action_space, capacity, branch_method, split_method, workspace_width, n_KER, 0.1443, **kwargs)
         DataStoreBase.__init__(self, capacity)
         self._lock = Lock()
         self._logger = None
@@ -290,7 +293,7 @@ class FractalKERReplayBufferDataStore(FractalKERReplayBuffer, DataStoreBase):
     # ensure thread safety
     def insert(self, data):
         with self._lock:
-            super(FractalKERReplayBufferDataStore, self).insert(data)
+            super(FractalKerReplayBufferDataStore, self).insert(data)
 
             # TODO: Data logging currently does NOT WORK as shown if we want to log our transformed transitions
             # add data to the rlds logger
@@ -316,7 +319,7 @@ class FractalKERReplayBufferDataStore(FractalKERReplayBuffer, DataStoreBase):
     # ensure thread safety
     def sample(self, *args, **kwargs):
         with self._lock:
-            return super(FractalKERReplayBufferDataStore, self).sample(*args, **kwargs)
+            return super(FractalKerReplayBufferDataStore, self).sample(*args, **kwargs)
 
     # NOTE: method for DataStoreBase
     def latest_data_id(self):
