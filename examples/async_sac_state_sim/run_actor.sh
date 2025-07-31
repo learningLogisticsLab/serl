@@ -5,9 +5,9 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION=.5 && \
 python async_sac_state_sim.py \
     --actor \
     --env PandaReachCube-v0 \
-    --exp_name PandaReachCube-v0_state_sim_3D_con-81-3-batch_2048_replay_8M_utd_32 \
+    --exp_name PandaReachCube-v0_FractalKER- \
     --seed 0 \
-    --replay_buffer_type fractal_symmetry_replay_buffer \
+    --replay_buffer_type FractalKER_replay_buffer \
     --max_steps 300_000 \
     --training_starts 1000 \
     --critic_actor_ratio 32 \
@@ -23,7 +23,8 @@ python async_sac_state_sim.py \
     --max_depth 4 \
     --branching_factor 3 \
     --workspace_width 0.5 \
-    --render
+    --symmetry reflection \
+    --n_KER 4
     # --checkpoint_period 10000 \
     # --checkpoint_path "$CHECKPOINT_DIR" \
     #--render \
