@@ -1,7 +1,6 @@
 #!/bin/bash
 export XLA_PYTHON_CLIENT_PREALLOCATE=false && \
 export XLA_PYTHON_CLIENT_MEM_FRACTION=.5 && \
-
 export SCRIPT_DIR=$(dirname "$(realpath "$0")") && \
 export TIMESTAMP=$(date +"%m-%d-%Y-%H-%M-%S") && \
 export CHECKPOINT_DIR="/data/fsrb_testing/checkpoints-$TIMESTAMP" && \
@@ -18,25 +17,28 @@ export CHECKPOINT_DIR="/data/fsrb_testing/checkpoints-$TIMESTAMP" && \
 python async_sac_state_sim.py "$@"\
     --learner \
     --env PandaReachCube-v0 \
-    --exp_name PandaReachCube-v0_state_sim_3D_con-81-9-batch_256_replay_1M_utd_8_ww_const \
+    --exp_name PandaReachCube-v0_state_sim_3d_demos_5_const_27^1_batch_256_replay_1M_utd_8 \
     --replay_buffer_type fractal_symmetry_replay_buffer \
-    --seed 0 \
-    --max_steps 30_000 \
+    --max_steps 50_000 \
     --training_starts 1000 \
-    --critic_actor_ratio 8 \
-    --batch_size 256 \
-    --replay_buffer_capacity 1_000_000 \
+    --random_steps 1000 \
+    --critic_actor_ratio 32 \
+    --batch_size 2048 \
+    --replay_buffer_capacity 8_000_000 \
     --save_model True \
-    --branch_method contraction \
-    --split_method time \
-    --max_traj_length 100 \
-    --alpha 1 \
-    --max_depth 2 \
-    --branching_factor 3 \
+    --branch_method constant \
+    --split_method constant \
+    --starting_branch_count 27 \
     --workspace_width 0.5 \
-    --start_num 81 \
-    --workspace_width_method constant \
-    #--debug \
-    #--render \
-    #--checkpoint_period 10000 \
-    #--checkpoint_path "$CHECKPOINT_DIR" \
+    --load_demos \
+    --demo_dir /data/data/serl/demos \
+    --file_name data_franka_reach_random_5_2.npz \
+    # --max_traj_length 100 \
+    # --max_depth 4 \    
+    # --start_num 81 \
+    # --alpha 1 \
+    # --branching_factor 3 \
+    # --checkpoint_period 10000 \
+    # --checkpoint_path "$CHECKPOINT_DIR" \
+    #--debug # wandb is disabled when debug
+    #--render 

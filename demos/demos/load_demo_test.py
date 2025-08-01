@@ -71,7 +71,7 @@ def load_demos_to_her_buffer_gymnasium(data_store, demo_npz_path: str, combine_d
             # Append truncated information to info_t
             info_t["TimeLimit.truncated"] = bool(ep_trunc[t])                      
 
-
+            # Enter transition into data_store or QueuedDataStore
             data_store.insert(
                             dict(
                                 observations=obs_t,
@@ -81,7 +81,7 @@ def load_demos_to_her_buffer_gymnasium(data_store, demo_npz_path: str, combine_d
                                 masks=1.0 - done_t,
                                 dones=done_t
                             )
-                        )            
+                        )       
 
     print(f"Can load {num_demos} transitions successfullly from {demo_npz_path}."
           f"(combine_done={combine_done}).")
@@ -118,7 +118,7 @@ def main():
     file_name = input(prompt) or default_file
     demo_file = os.path.join(script_dir, file_name)
 
-    # Load the demo file into the HER buffer: mutated model.replay_buffer will persist. 
+    # Load the demo file into data_store as in async_sac_state.py
     from agentlace.data.data_store import QueuedDataStore
     data_store = QueuedDataStore(2000) 
     load_demos_to_her_buffer_gymnasium(data_store, demo_file, combine_done=True)
