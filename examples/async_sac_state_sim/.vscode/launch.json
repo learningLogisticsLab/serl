@@ -13,15 +13,17 @@
             "args": [
                 "--learner",                          // REQUIRED: Indicates this is a learner instance
                 "--env", "PandaReachCube-v0",         // Environment to use
-                "--exp_name=SERL-ReachTask",          // Experiment name for wandb logging
+                "--exp_name", "disassociated_testing",         // Experiment name for wandb logging
                 "--seed", "0",                        // Random seed for reproducibility
                 "--max_steps", "100000",              // Maximum training steps
                 "--training_starts", "1000",          // Start training after buffer has this many samples
                 "--critic_actor_ratio", "8",          // Critic-to-actor update ratio
                 "--batch_size", "256",                // Training batch size
-                "--replay_buffer_capacity", "100000", // Replay buffer capacity
-                "--start_num", "81",                  // Fractal Contraction starting with 81 branches
-                "--workspace_width_method", "decrease",// Workspace Width Method to increase density
+                "--replay_buffer_capacity", "1_000_000", // Replay buffer capacity
+                "--disassociated_type", "octahedron", // Type of disassociated test to perform
+                "--min_branch_count", "3",            // Minimum branch count for disassociated testing
+                "--max_branch_count", "9",            // Maximum branch count for disassociated testing
+                "--num_depth_sectors", "13"           // Desired number of sectors to divide rollouts into for branch count splitting
             ],
             "console": "integratedTerminal",          // Use integrated terminal to see output
             "justMyCode": false,                      // Allow stepping into libraries
@@ -54,8 +56,10 @@
                 "--critic_actor_ratio", "8",          // Critic-to-actor update ratio
                 "--batch_size", "256",                // Training batch size
                 "--replay_buffer_capacity", "100000", // Replay buffer capacity
-                "--start_num", "81",                  // Fractal Contraction starting with 81 branches
-                "--workspace_width_method", "decrease",// Workspace Width Method to increase density                
+                "--disassociated_type", "octahedron", // Type of disassociated test to perform
+                "--min_branch_count", "3",            // Minimum branch count for disassociated testing
+                "--max_branch_count", "9",            // Maximum branch count for disassociated testing
+                "--num_depth_sectors", "13"           // Desired number of sectors to divide rollouts into for branch count splitting             
             ],
             "console": "integratedTerminal",          // Use integrated terminal to see output
             "justMyCode": false,                      // Allow stepping into libraries

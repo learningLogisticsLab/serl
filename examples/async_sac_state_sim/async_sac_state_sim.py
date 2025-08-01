@@ -74,8 +74,16 @@ flags.DEFINE_integer("alpha",None,"alpha value")
 # Contraction
 flags.DEFINE_integer("start_num",81, "Initial number of branch on the first depth") # For Fractal Cntraction
 
+# Disassociated
+flags.DEFINE_enum("disassociated_type", "octahedron", ["octahedron", "hourglass"], 
+                  "Type of disassociated fracal rollout. Octahedron: expand from min to max then contract to min,"
+                   + " Hourglass: Contract from max to min then expand to max")
+flags.DEFINE_integer("min_branch_count", 1, "Minimum number of branches for disassociated fractal rollout")
+flags.DEFINE_integer("max_branch_count", 1, "Maximum number of branches for disassociated fractal rollout")
+flags.DEFINE_integer("num_depth_sectors", 1, "Desired number of sectors to divide rollout into for branch count splitting")
+
 # Density Workspace width
-flags.DEFINE_string("workspace_width_method",'increase', 'Controls workspace width dimensions configurations')
+flags.DEFINE_string("workspace_width_method", 'constant', 'Controls workspace width dimensions configurations')
 
 # Debug
 flags.DEFINE_boolean(
