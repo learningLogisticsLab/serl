@@ -153,10 +153,11 @@ class FractalSymmetryReplayBufferDataStore(FractalSymmetryReplayBuffer, DataStor
         branch_method: str,
         split_method: str,
         workspace_width: int,
+        workspace_width_method: str,
         rlds_logger: Optional[RLDSLogger] = None,
         **kwargs: dict,
     ):
-        FractalSymmetryReplayBuffer.__init__(self, observation_space, action_space, capacity, branch_method, split_method, workspace_width, **kwargs)
+        FractalSymmetryReplayBuffer.__init__(self, observation_space, action_space, capacity, branch_method, split_method, workspace_width, workspace_width_method,**kwargs)
         DataStoreBase.__init__(self, capacity)
         self._lock = Lock()
         self._logger = None

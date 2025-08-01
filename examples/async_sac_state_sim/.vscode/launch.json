@@ -20,6 +20,8 @@
                 "--critic_actor_ratio", "8",          // Critic-to-actor update ratio
                 "--batch_size", "256",                // Training batch size
                 "--replay_buffer_capacity", "100000", // Replay buffer capacity
+                "--start_num", "81",                  // Fractal Contraction starting with 81 branches
+                "--workspace_width_method", "decrease",// Workspace Width Method to increase density
             ],
             "console": "integratedTerminal",          // Use integrated terminal to see output
             "justMyCode": false,                      // Allow stepping into libraries
@@ -52,6 +54,8 @@
                 "--critic_actor_ratio", "8",          // Critic-to-actor update ratio
                 "--batch_size", "256",                // Training batch size
                 "--replay_buffer_capacity", "100000", // Replay buffer capacity
+                "--start_num", "81",                  // Fractal Contraction starting with 81 branches
+                "--workspace_width_method", "decrease",// Workspace Width Method to increase density                
             ],
             "console": "integratedTerminal",          // Use integrated terminal to see output
             "justMyCode": false,                      // Allow stepping into libraries
