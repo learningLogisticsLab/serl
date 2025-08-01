@@ -69,14 +69,20 @@ flags.DEFINE_integer("timesplit_freq", None, "Frequency of splits according to t
 flags.DEFINE_integer("branch_count_rate_of_change", None, "Rate of change for linear branching")
 flags.DEFINE_integer("starting_branch_count", 1, "Initial number of branches")
 flags.DEFINE_integer("branching_factor", None, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch and fractal_contraction
-flags.DEFINE_integer("start_num",None, "Initila number of branch on the first depth") # For Fractal Cntraction
 flags.DEFINE_integer("alpha",None,"alpha value")
 
+# Contraction
+flags.DEFINE_integer("start_num",81, "Initial number of branch on the first depth") # For Fractal Cntraction
 
+# Density Workspace width
+flags.DEFINE_string("workspace_width_method",'increase', 'Controls workspace width dimensions configurations')
+
+# Debug
 flags.DEFINE_boolean(
     "debug", False, "Debug mode."
 )  # debug mode will disable wandb logging
 
+# Logging
 flags.DEFINE_string("log_rlds_path", None, "Path to save RLDS logs.")
 flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 
@@ -314,9 +320,12 @@ def main(_):
             x_obs_idx=np.array([0,4]),
             y_obs_idx=np.array([1,5]),
             preload_rlds_path=FLAGS.preload_rlds_path,
-            start_num = FLAGS.start_num,
             max_depth = FLAGS.max_depth,
             alpha = FLAGS.alpha,
+            # Contraction
+            start_num = FLAGS.start_num,
+            # Workspace Width Density
+            workspace_width_method=FLAGS.workspace_width_method
         )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={

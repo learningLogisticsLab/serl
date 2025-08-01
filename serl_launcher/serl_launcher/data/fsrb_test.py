@@ -17,8 +17,11 @@ flags.DEFINE_integer("max_depth", 4, "Maximum level of depth") # For fractal_bra
 flags.DEFINE_integer("max_steps",20000,"Maximum steps")
 flags.DEFINE_integer("branching_factor", 3, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch only
 flags.DEFINE_integer("starting_branch_count", 1, "Initial number of transforms per dimension (x,y)") # For constant_branch only
-flags.DEFINE_integer("start_num",81, "Initila number of branch on the first depth") # For Fractal Cntraction
 flags.DEFINE_integer("alpha",1,"alpha value")
+# Contraction
+flags.DEFINE_integer("start_num",81, "Initila number of branch on the first depth") # For Fractal Cntraction
+# Density Workspace width
+flags.DEFINE_string("workspace_width_method",'increase', 'Controls workspace width dimensions configurations')
 
 def main(_):
 
@@ -39,10 +42,11 @@ def main(_):
         x_obs_idx=x_obs_idx,
         y_obs_idx= y_obs_idx,
         max_depth=FLAGS.max_depth,
-        max_traj_length = 150,
+        max_traj_length = 100,
         branching_factor=FLAGS.branching_factor,
         start_num = FLAGS.start_num,
-        alpha = FLAGS.alpha
+        alpha = FLAGS.alpha,
+        workspace_width_method=FLAGS.workspace_width_method
     )
 
     observation, info = env.reset()
@@ -72,8 +76,9 @@ def main(_):
 
     # branch() tests
 
-    ## fractal -Associative Expansions
-
+    #-------------------------------------------------------------------
+    # Fractal Associative Expansions
+    #-------------------------------------------------------------------
     replay_buffer.branching_factor = 3
 
     replay_buffer.current_depth = 1
@@ -102,8 +107,9 @@ def main(_):
 
     print("\033[32mTEST PASSED \033[0m fractal_branch() tests passed")
 
-
-    # fractal contraction
+    #-------------------------------------------------------------------
+    # Fractal Associative Contractions
+    #-------------------------------------------------------------------    
     replay_buffer.branching_factor = 3
 
     replay_buffer.current_depth = 1
@@ -132,13 +138,10 @@ def main(_):
 
     print("\033[32mTEST PASSED \033[0m fractal_contraction() tests passed")
 
-
-
-
-
-
-
+    #-------------------------------------------------------------------
     # split() tests
+    #-------------------------------------------------------------------
+
     ## time
     replay_buffer.max_steps = 100
     replay_buffer.max_depth = 4
@@ -187,6 +190,80 @@ def main(_):
 
 
     print("\033[32mTEST PASSED \033[0m insert() tests passed")
+
+    #-------------------------------------------------------------------
+    # Fractal Expansions with workspace_width_modification
+    #-------------------------------------------------------------------
+    print('\nWorkspace width tests....')
+
+    replay_buffer.branching_factor = 3
+    replay_buffer.current_depth = 1
+
+    if FLAGS.workspace_width_method == 'constant':
+        result = replay_buffer.get_workspace_width()
+        expected = FLAGS.workspace_width
+        assert result == expected, f"\033[31mTEST FAILED\033[0m get_workspace_width() test failed (expected {expected} but got {result})"
+    
+    elif FLAGS.workspace_width_method == 'decrease':
+        result = replay_buffer.get_workspace_width()
+        expected = FLAGS.workspace_width - 0.05*replay_buffer.current_depth
+        assert result == expected, f"\033[31mTEST FAILED\033[0m get_workspace_width() test failed (expected {expected} but got {result})"
+    
+    elif FLAGS.workspace_width_method == 'increase':
+        result = replay_buffer.get_workspace_width()
+        expected = FLAGS.workspace_width + 0.05*replay_buffer.current_depth
+        assert result == expected, f"\033[31mTEST FAILED\033[0m get_workspace_width() test failed (expected {expected} but got {result})"
+
+    else:
+        raise NameError('There is no workspace width method with that name.')
+    
+
+    replay_buffer.current_depth = 2
+
+    if FLAGS.workspace_width_method == 'constant':
+        result = replay_buffer.get_workspace_width()
+        expected = FLAGS.workspace_width
+        assert result == expected, f"\033[31mTEST FAILED\033[0m get_workspace_width() test failed (expected {expected} but got {result})"
+    
+    elif FLAGS.workspace_width_method == 'decrease':
+        result = replay_buffer.get_workspace_width()
+        expected = FLAGS.workspace_width - 0.05*replay_buffer.current_depth
+        assert result == expected, f"\033[31mTEST FAILED\033[0m get_workspace_width() test failed (expected {expected} but got {result})"
+    
+    elif FLAGS.workspace_width_method == 'increase':
+        result = replay_buffer.get_workspace_width()
+        expected = FLAGS.workspace_width + 0.05*replay_buffer.current_depth
+        assert result == expected, f"\033[31mTEST FAILED\033[0m get_workspace_width() test failed (expected {expected} but got {result})"
+
+    else:
+        raise NameError('There is no workspace width method with that name.')
+
+
+    replay_buffer.current_depth = 3
+
+    if FLAGS.workspace_width_method == 'constant':
+        result = replay_buffer.get_workspace_width()
+        expected = FLAGS.workspace_width
+        assert result == expected, f"\033[31mTEST FAILED\033[0m get_workspace_width() test failed (expected {expected} but got {result})"
+    
+    elif FLAGS.workspace_width_method == 'decrease':
+        result = replay_buffer.get_workspace_width()
+        expected = FLAGS.workspace_width - 0.05*replay_buffer.current_depth
+        assert result == expected, f"\033[31mTEST FAILED\033[0m get_workspace_width() test failed (expected {expected} but got {result})"
+    
+    elif FLAGS.workspace_width_method == 'increase':
+        result = replay_buffer.get_workspace_width()
+        expected = FLAGS.workspace_width + 0.05*replay_buffer.current_depth
+        assert result == expected, f"\033[31mTEST FAILED\033[0m get_workspace_width() test failed (expected {expected} but got {result})"
+
+    else:
+        raise NameError('There is no workspace width method with that name.')
+    
+    replay_buffer.current_depth = 0
+
+    del result, expected
+
+    print("\n\033[32mTEST PASSED \033[0m workspace_width_method() test passed")    
 
         
     print("\nfinished!\n")
