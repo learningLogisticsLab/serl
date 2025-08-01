@@ -45,7 +45,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             case "disassociated":
                 assert "max_traj_length" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "max_traj_length")
                 self.max_traj_length=kwargs["max_traj_length"]
-                update_max_traj_length = True
+                self.update_max_traj_length = True
 
                 assert "alpha" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "alpha")
                 self.alpha=kwargs["alpha"]
@@ -106,12 +106,11 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
 
                 assert "disassociated_type" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "disassociated_type")
                 if kwargs["disassociated_type"] == "hourglass":
-                    self.disassociated_type = "hourglass"
                     self.current_branch_count = self.max_branch_count
                 elif kwargs["disassociated_type"] == "octahedron":
-                    self.current_branch_count = "octahedron"
-                    self.starting_branch_count = self.min_branch_count
-
+                    self.current_branch_count = self.min_branch_count
+                self.disassociated_type = kwargs["disassociated_type"]
+                
                 self.branch = self.disassociated_branch
             
             case "constant":

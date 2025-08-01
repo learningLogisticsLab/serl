@@ -333,7 +333,12 @@ def main(_):
             # Contraction
             start_num = FLAGS.start_num,
             # Workspace Width Density
-            workspace_width_method=FLAGS.workspace_width_method
+            workspace_width_method=FLAGS.workspace_width_method,
+            # Disassociated
+            disassociated_type=FLAGS.disassociated_type,
+            min_branch_count=FLAGS.min_branch_count,
+            max_branch_count=FLAGS.max_branch_count,
+            num_depth_sectors=FLAGS.num_depth_sectors
         )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={

@@ -2,6 +2,9 @@
     // VSCode debug configuration version
     "version": "0.2.0",
     "configurations": [
+        
+
+
         // LEARNER
         {
             // Configuration for the RL agent learner component
@@ -13,17 +16,22 @@
             "args": [
                 "--learner",                          // REQUIRED: Indicates this is a learner instance
                 "--env", "PandaReachCube-v0",         // Environment to use
-                "--exp_name", "disassociated_testing",         // Experiment name for wandb logging
+                "--exp_name=SERL-ReachTask",              // Experiment name for wandb logging
                 "--seed", "0",                        // Random seed for reproducibility
+                "--random_steps", "1000",             // Number of random steps at beginning
                 "--max_steps", "100000",              // Maximum training steps
+                "--replay_buffer_type","fractal_symmetry_replay_buffer", // reply buffer type
                 "--training_starts", "1000",          // Start training after buffer has this many samples
                 "--critic_actor_ratio", "8",          // Critic-to-actor update ratio
                 "--batch_size", "256",                // Training batch size
-                "--replay_buffer_capacity", "1_000_000", // Replay buffer capacity
+                "--replay_buffer_capacity", "100000", // Replay buffer capacity
+                "--branch_method", "disassociated",   // branch method type
+                "--split_method", "disassociated",    // split method type
                 "--disassociated_type", "octahedron", // Type of disassociated test to perform
                 "--min_branch_count", "3",            // Minimum branch count for disassociated testing
                 "--max_branch_count", "9",            // Maximum branch count for disassociated testing
-                "--num_depth_sectors", "13"           // Desired number of sectors to divide rollouts into for branch count splitting
+                "--num_depth_sectors", "13",          // Desired number of sectors to divide rollouts into for branch count splitting
+                "--alpha", "1"                        // alpha   
             ],
             "console": "integratedTerminal",          // Use integrated terminal to see output
             "justMyCode": false,                      // Allow stepping into libraries
@@ -52,14 +60,18 @@
                 "--seed", "0",                        // Random seed for reproducibility
                 "--random_steps", "1000",             // Number of random steps at beginning
                 "--max_steps", "100000",              // Maximum training steps
+                "--replay_buffer_type","fractal_symmetry_replay_buffer", // reply buffer type
                 "--training_starts", "1000",          // Start training after buffer has this many samples
                 "--critic_actor_ratio", "8",          // Critic-to-actor update ratio
                 "--batch_size", "256",                // Training batch size
                 "--replay_buffer_capacity", "100000", // Replay buffer capacity
+                "--branch_method", "disassociated",   // branch method type
+                "--split_method", "disassociated",    // split method type
                 "--disassociated_type", "octahedron", // Type of disassociated test to perform
                 "--min_branch_count", "3",            // Minimum branch count for disassociated testing
                 "--max_branch_count", "9",            // Maximum branch count for disassociated testing
-                "--num_depth_sectors", "13"           // Desired number of sectors to divide rollouts into for branch count splitting             
+                "--num_depth_sectors", "13",          // Desired number of sectors to divide rollouts into for branch count splitting
+                "--alpha", "1"                        // alpha   
             ],
             "console": "integratedTerminal",          // Use integrated terminal to see output
             "justMyCode": false,                      // Allow stepping into libraries
