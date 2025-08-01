@@ -84,6 +84,12 @@ We fixed a major issue in the intervention action frame. See release [v0.1.1](ht
     pip install -e .
     ```
 
+6. **Install the demos**
+    ```bash
+    cd demos
+    pip install -e .
+    ```
+
 ## Overview and Code Structure
 
 SERL provides a set of common libraries for users to train RL policies for robotic manipulation tasks. The main structure of running the RL experiments involves having an actor node and a learner node, both of which interact with the robot gym environment. Both nodes run asynchronously, with data being sent from the actor to the learner node via the network using [agentlace](https://github.com/youliangtan/agentlace). The learner will periodically synchronize the policy with the actor. This design provides flexibility for parallel training and inference.

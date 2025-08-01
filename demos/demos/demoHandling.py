@@ -67,7 +67,10 @@ class DemoHandling:
         The .npz file must contain arrays named 'obs', 'acs', 'rewards',
         'terminateds', 'truncateds', 'info', and optionally 'dones'.
         Each episode is processed, and transitions are inserted into the data_store.
-        Inserted transitions in data store will remain in the data_store as pointers
+        Inserted transitions in data store will remain in the data_store as pointers.
+
+        ***Note***
+        Need to insert obs and acs in the same way as async_sac_state via jax
 
         Parameters
         ----------
@@ -107,11 +110,12 @@ class DemoHandling:
 
             T = len(ep_acts)
             for t in range(T):
-                obs_t       = ep_obs[t]
-                next_obs_t  = ep_obs[t+1]
-                a_t         = ep_acts[t]
+                obs_t       = np.asarray(ep_obs[t], dtype=np.float32)
+                next_obs_t  = np.asarray(ep_obs[t+1], dtype=np.float32)
+                a_t         = np.asarray(ep_acts[t], dtype=np.float32)
                 r_t         = float(ep_rews[t])
                 done_t      = bool(ep_done[t] or ep_terms[t] or ep_trunc[t])
+                #info_t     = ep_info[t]
                 # masks will be created right before insert below
 
                 if self.debug:
@@ -123,6 +127,7 @@ class DemoHandling:
                         f"Reward: {r_t:.2f} \n "
                         f"Done: {done_t}")
 
+                # Insert using SERLs data_store/ReplayBuffer insert mechanism directly.
                 data_store.insert(
                     dict(
                         observations     =obs_t,
