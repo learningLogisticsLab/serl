@@ -42,6 +42,24 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             case "constant":
                 self.split = self.constant_split
 
+            case "disassociated":
+                assert "max_traj_length" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "max_traj_length")
+                self.max_traj_length=kwargs["max_traj_length"]
+                self.update_max_traj_length = True
+
+                assert "alpha" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "alpha")
+                self.alpha=kwargs["alpha"]
+
+                assert "num_depth_sectors" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "num_depth_sectors")
+                self.num_depth_sectors=kwargs["num_depth_sectors"]
+
+                self.steps_per_depth = int(np.floor(self.max_traj_length/self.num_depth_sectors)) # does this need to be np.float32?
+
+                self.transition_counter = 0
+
+                self.split = self.disassociated_split
+                
+
             case "test":
                 self.split = self.test_split
             case _:
@@ -75,6 +93,25 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             case "linear":
                 raise NotImplementedError("linear branch method is not yet implemented")
                 # self.branch = self.linear_branch
+
+            case "disassociated":
+                assert "min_branch_count" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "min_branch_count)")
+                self.min_branch_count = kwargs["min_branch_count"]
+
+                assert "max_branch_count" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "max_branch_count)")
+                self.max_branch_count = kwargs["max_branch_count"]
+
+                if self.min_branch_count > self.max_branch_count:
+                    raise ValueError(f"min_branch_count: {self.min_branch_count} is larger than max_branch_count: {self.max_branch_count}. Max should be larger than min.")
+
+                assert "disassociated_type" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "disassociated_type")
+                if kwargs["disassociated_type"] == "hourglass":
+                    self.current_branch_count = self.max_branch_count
+                elif kwargs["disassociated_type"] == "octahedron":
+                    self.current_branch_count = self.min_branch_count
+                self.disassociated_type = kwargs["disassociated_type"]
+                
+                self.branch = self.disassociated_branch
             
             case "constant":
                 assert "starting_branch_count" in kwargs.keys(), self._handle_bad_args_("branch_method", branch_method, "starting_branch_count")
@@ -221,6 +258,21 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         # return current number of branches
         return self.current_branch_count
     
+    def disassociated_branch(self):
+        '''
+        Used to create branches for disassociated fractal methods.
+        self.min_branch_count specifies the mininum branch count desired during the fractal rollout
+        self.max_branch_count specifies the maximum branch count desired during the fractal rollout
+        self.disassociated_type specifies whether to expand and then contract or to contract and then expand
+        self.steps_per_depth specifies the number of timesteps to take before splitting 
+                (calculated indirectly via self.max_traj_length / self.num_depth_sectors)
+        self.num_depth_sectors specifies the number of sectors the rollout should be divided into for even splitting
+        '''
+        if self.disassociated_type == "hourglass":
+            return int((self.max_branch_count - self.min_branch_count)/(self.num_depth_sectors/2) * np.abs(self.current_depth - (self.num_depth_sectors/2)) + self.min_branch_count)
+        elif self.disassociated_type == "octahedron":
+            return int((self.min_branch_count - self.max_branch_count)/(self.num_depth_sectors/2) * np.abs(self.current_depth - (self.num_depth_sectors/2)) + self.max_branch_count)
+        
     # REQUIRES TESTING
     # def linear_branch(self):
     #     # return a new number of branches = branches_count + n
@@ -241,6 +293,15 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
     
     def constant_split(self, data_dict: DatasetDict):
         return True
+    
+    def disassociated_split(self, data_dict: DatasetDict):
+        if self.transition_counter >= self.steps_per_depth:
+            self.current_depth += 1
+            self.transition_counter = 0
+            return True
+        else:
+            self.transition_counter += 1
+            return False
 
     # Workspace Width Methods
     def ww_constant(self):
@@ -318,6 +379,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             self.current_depth = 0
             if self.update_max_traj_length:
                 self.max_traj_length = int(self.timestep * self.alpha + self.max_traj_length * (1 - self.alpha))
+                self.steps_per_depth = int(np.floor(self.max_traj_length/self.num_depth_sectors)) # does this need to be np.float32?
             self.timestep = 0
 
         if self.debug_time:
