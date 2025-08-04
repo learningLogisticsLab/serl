@@ -12,9 +12,8 @@ from serl_launcher.data.replay_buffer import ReplayBuffer
 # Optimization of matrix operations
 import numpy as np
 import jax
+from jax import jit
 import jax.numpy as jnp
-from jax import lax
-
 
 class FractalSymmetryReplayBuffer(ReplayBuffer):
     def __init__(
@@ -169,7 +168,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
     def _handle_bad_args_(self, type: str, method: str, arg: str) :
         return f"\033[31mERROR: \033[0m{arg} must be defined for {type} \"{method}\""
     
-
     # Update (x,y) observations with translational transformation
     def transform(self, data_dict: DatasetDict, transform: np.array):
         #   return data_dict with positional arguments += translation
@@ -272,20 +270,20 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         return self.workspace_width - self.current_depth*0.05         
 
     #---------------------------------------------
-    
+    @jit
     def compute_transformation(self, data_dict, num_transforms):
         '''
-        
+        Add fractal transformations (translations to matrix of observations)
         '''
 
         # Generate observation matrices
         o_m, no_m = self.generate_obs_mats(data_dict, num_transforms)
 
         # Transform o_m and no_m using fractal equation (use lax.scan inside for incremental change)
-        del_o_m = lax.scan( self.compute_delta, o_m )
-        del_no_m = lax.scan( self.compute_deltas, no_m)
+        trans_o_m = self.compute_deltas( o_m )
+        trans_no_m = self.compute_deltas( no_m)
 
-        return del_o_m,del_no_m
+        return trans_o_m,trans_no_m
 
 
     def compute_deltas(self,mat,type='grid'): # add type as jnp array
@@ -304,29 +302,22 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             # 1. Get the boundary of the workspace environment
             edge = self.get_workspace_width()/2.
 
-            # 2. Get array of translation deltas: ( (2i+1)/2b ) * ww
+            # 2. Get array of translation deltas for x,y offsets: ( (2i+1)/2b ) * ww
             constant = self.get_workspace_width() / (2. * self.current_branch_count)
             x_offset = ( (2 * i) + 1) * constant
             y_offset = ( (2 * j) + 1) * constant
 
-            # 3. Enter for block and robot x,y positions for all transformations
-            #             from jax import lax
-
-            # m_updated = lax.scatter(m,
-            #     indices=r[:, None],
-            #     updates=new_rows,
-            #     dimension_numbers=lax.ScatterDimensionNumbers(
-            #         update_window_dims=(1,),
-            #         inserted_window_dims=(0,),
-            #         scatter_dims_to_operand_dims=(0,)
-            #     ),
-            #     indices_are_sorted=False,
-            #     unique_indices=True
-)
-
-
+            # 3. Generate the matrix grid of transformations by element-wise sum of deltas on the matrix of env. observations. Use self.x_obs_idx & y_obs_idx.
+            # Perform separate updates
+            trans_mat = (
+                mat
+                .at[self.x_obs_idx].add(x_offset)          # add x_offset to each of the two x-rows
+                .at[self.y_obs_idx].add(y_offset)          # add y_offset to each of the two y-rows
+            )
         else:
             raise TypeError('transform_matrix: no correct fractal framework type was given...')
+        
+        return trans_mat
         
     def generate_obs_mats(self, data_dict: DatasetDict, num_transforms: int, type='grid'):
         '''
@@ -390,13 +381,9 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.num_transforms = self.current_branch_count**2
 
                 # Compute transformation deltas for observations
-                self.delta_o_m, self.delta_no_m = self.compute_transformation(data_dict, self.num_transforms)
+                trans_o_m, trans_no_m = self.compute_transformation(data_dict, self.num_transforms)
 
-                # Add observations with deltas
-                transf_o_m = o_m + self.delta_o_m
-                transf_no_m = no_m + self.delta_no_m
-
-                insert_mat_replay_buffer(transf_o_m, transf_no_m)
+                insert_mat_replay_buffer(trans_o_m, trans_no_m)
 
         #else??
 
@@ -408,7 +395,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         transf_no_m = no_m + self.delta_no_m    
 
         # Insert to replay buffer
-        insert_mat_replay_buffer(transf_o_m, transf_no_m)    
+        batch_insert(transf_o_m, transf_no_m)    
 
 
         # Reset current_depth, timestep, and max_traj_length
@@ -424,3 +411,22 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         if self.debug_time:
             finish = dt.now()
             print(f"Splits: {(sector_2 - sector_1).total_seconds():.5f} : {(sector_3 - sector_2).total_seconds():.5f} : {(sector_4 - sector_3).total_seconds():.5f} : {(finish - sector_4).total_seconds():.5f}\nLaptime: {(finish - sector_1).total_seconds():.5f}")
+
+        def batch_insert(self, batch: DatasetDict):
+            """
+            batch is a dict of NumPy arrays, each of shape (B, *field_shape).
+            We insert B new entries in one go.
+            """
+            B = batch["observations"].shape[0]
+            # wrap‐around indices
+            idxs = (np.arange(self._insert_index,
+                            self._insert_index + B) % self._capacity)
+
+            # for each key, write the entire batch into self.dataset_dict
+            for k, array in batch.items():
+                # e.g. self.dataset_dict["observations"][idxs] = batch["observations"]
+                self.dataset_dict[k][idxs] = array
+
+            # advance pointers
+            self._insert_index = idxs[-1] + 1
+            self._size = min(self._size + B, self._capacity)
