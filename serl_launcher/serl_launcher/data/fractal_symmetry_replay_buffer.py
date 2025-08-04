@@ -382,6 +382,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.steps_per_depth = int(np.floor(self.max_traj_length/self.num_depth_sectors)) # does this need to be np.float32?
             self.timestep = 0
 
+
         if self.debug_time:
             finish = dt.now()
             print(f"Splits: {(sector_2 - sector_1).total_seconds():.5f} : {(sector_3 - sector_2).total_seconds():.5f} : {(sector_4 - sector_3).total_seconds():.5f} : {(finish - sector_4).total_seconds():.5f}\nLaptime: {(finish - sector_1).total_seconds():.5f}")
