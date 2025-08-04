@@ -14,6 +14,7 @@ import numpy as np
 import jax
 from jax import jit
 import jax.numpy as jnp
+from functools import partial
 
 class FractalSymmetryReplayBufferParallel(FractalSymmetryReplayBuffer):
     '''
@@ -43,38 +44,11 @@ class FractalSymmetryReplayBufferParallel(FractalSymmetryReplayBuffer):
             kwargs=kwargs,
         )
         
-        # Create branch index to control how to set (x,y) offsets of different branches
-        self.branch_index_parallel = np.empty(self.current_branch_count, dtype=np.float32)
-
-        ## Set spacing for transformations (see more: https://www.notion.so/Fractal-Symmetry-Characterization-225cd3402f1a80948509ec86f0b6ee5e?source=copy_link#22bcd3402f1a8054b97ff0ab387923f7)
-        # Set a constant value useful in the computation a standard offset between branches
-        constant_parallel = self.workspace_width/(2 * self.current_branch_count)
-
-        # Compute the translation offsets from left edge according to branch index:
-        for i in range(0, self.current_branch_count):
-            self.branch_index_parallel[i] = (2 * i + 1) * constant_parallel
-
-        ## Warn about unused kwargs
-        for k in kwargs.keys():
-            print(f"\033[33mWARNING \033[0m argument \"{k}\" not used")
-        
-        # TODO
-        #   Create more methods with tests
-        # 
-        # Future considerations:
-        #   when dealing with x and y for transforms, consider two versions:
-        #       radial trees at different angles can have strong fractal symmetry built in but will be more difficult to evenly space lowest level transforms
-        #       grid-based will inherently evenly space lowest transforms, but fractal symmetry will be restricted to 9 branching_factor (original plus 8) in order to conform
-
-        # Init replay buffer class
-        super().__init__(
-            observation_space=observation_space,
-            action_space=action_space,
-            capacity=capacity,
-        )
+        # Set the total number of transformations to the number of transformations squared for the grid method. May need to change for radial method later.
+        self.num_transforms = self.current_branch_count ** 2
 
     #---------------------------------------------
-    @jit
+    @partial(jax.jit, static_argnums=(0, 2)) # states that self and num_transforms are not array like and do not need to be traced and need to be marked as static.
     def compute_transformation(self, data_dict, num_transforms):
         '''
         Add fractal transformations (translations) to matrix of observations in jitted form.
@@ -151,8 +125,8 @@ class FractalSymmetryReplayBufferParallel(FractalSymmetryReplayBuffer):
         '''
         
         # Convert observations to a vector
-        o_col = jnp.array(data_dict["observations"], type=jnp.float32)
-        no_col = jnp.array(data_dict["next_observations"], type=jnp.float32)
+        o_col = jnp.array(data_dict["observations"], dtype=jnp.float32)
+        no_col = jnp.array(data_dict["next_observations"], dtype=jnp.float32)
 
         # Expand observations column vector to a matrix using tile
         o_m = jnp.tile(o_col, (1,num_transforms))

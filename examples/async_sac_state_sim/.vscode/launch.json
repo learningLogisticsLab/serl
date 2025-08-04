@@ -17,7 +17,7 @@
 
                 "--learner",                                // REQUIRED: Indicates this is a learner instance
                 "--env", "PandaReachCube-v0",               // Environment to use
-                "--exp_name PandaReachCube-v0_state_sim_3d_parallel_const_3^1_batch_256_replay_1M_utd_8", // Experiment name for wandb logging
+                "--exp_name", "PandaReachCube-v0_state_sim_3d_parallel_const_3^1_batch_256_replay_1M_utd_8", // Experiment name for wandb logging
                 "--seed", "0",                              // Random seed for reproducibility
                 "--random_steps", "1_000",                  // Number of random steps at beginning
                 "--max_steps", "50_000 ",                   // Maximum training steps
@@ -71,7 +71,7 @@
             "args": [
                 "--actor",                                  // REQUIRED: Indicates this is an actor instance
                 "--env", "PandaReachCube-v0",               // Environment to use
-                "--exp_name PandaReachCube-v0_state_sim_3d_parallel_const_3^1_batch_256_replay_1M_utd_8", // Experiment name for wandb logging
+                "--exp_name", "PandaReachCube-v0_state_sim_3d_parallel_const_3^1_batch_256_replay_1M_utd_8", // Experiment name for wandb logging
                 "--seed", "0",                              // Random seed for reproducibility
                 "--random_steps", "1_000",                  // Number of random steps at beginning
                 "--max_steps", "500_000 ",                   // Maximum training steps
