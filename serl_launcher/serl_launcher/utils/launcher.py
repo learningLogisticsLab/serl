@@ -19,6 +19,7 @@ from serl_launcher.data.data_store import (
     MemoryEfficientReplayBufferDataStore,
     ReplayBufferDataStore,
     FractalSymmetryReplayBufferDataStore,
+    FractalSymmetryReplayBufferParallelDataStore,
 )
 
 ##############################################################################
@@ -272,6 +273,19 @@ def make_replay_buffer(
             rlds_logger=rlds_logger,
             kwargs=kwargs,
         )
+    elif type == "fractal_symmetry_replay_buffer_parallel":
+        replay_buffer = FractalSymmetryReplayBufferParallelDataStore(
+            env.observation_space,
+            env.action_space,
+            capacity=capacity,
+            branch_method=branch_method,
+            split_method=split_method,
+            workspace_width=workspace_width,
+            workspace_width_method=workspace_width_method,
+            rlds_logger=rlds_logger,
+            kwargs=kwargs,
+        )
+    
     else:
         raise ValueError(f"Unsupported replay_buffer_type: {type}")
 

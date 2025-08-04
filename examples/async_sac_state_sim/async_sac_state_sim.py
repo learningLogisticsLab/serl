@@ -358,29 +358,29 @@ def main(_):
         sampling_rng = jax.device_put(sampling_rng, device=sharding.replicate())
         replay_buffer = make_replay_buffer(
             env,
-            capacity=FLAGS.replay_buffer_capacity,
-            rlds_logger_path=FLAGS.log_rlds_path,
-            type=FLAGS.replay_buffer_type,
-            branch_method=FLAGS.branch_method,
-            split_method=FLAGS.split_method,
-            branching_factor=FLAGS.branching_factor,
+            capacity            =FLAGS.replay_buffer_capacity,
+            rlds_logger_path    =FLAGS.log_rlds_path,
+            type                =FLAGS.replay_buffer_type,
+            branch_method       =FLAGS.branch_method,
+            split_method        =FLAGS.split_method,
+            branching_factor    =FLAGS.branching_factor,
             starting_branch_count=FLAGS.starting_branch_count,
-            workspace_width=FLAGS.workspace_width,
-            max_traj_length=FLAGS.max_traj_length,
-            x_obs_idx=np.array([0,4]),
-            y_obs_idx=np.array([1,5]),
-            preload_rlds_path=FLAGS.preload_rlds_path,
-            max_depth = FLAGS.max_depth,
-            alpha = FLAGS.alpha,
+            workspace_width     =FLAGS.workspace_width,
+            max_traj_length     =FLAGS.max_traj_length,
+            x_obs_idx           =np.array([0,4]),
+            y_obs_idx           =np.array([1,5]),
+            preload_rlds_path   =FLAGS.preload_rlds_path,
+            max_depth           =FLAGS.max_depth,
+            alpha               =FLAGS.alpha,
             # Contraction
-            start_num = FLAGS.start_num,
+            start_num           =FLAGS.start_num,
             # Workspace Width Density
             workspace_width_method=FLAGS.workspace_width_method,
             # Disassociated
-            disassociated_type=FLAGS.disassociated_type,
-            min_branch_count=FLAGS.min_branch_count,
-            max_branch_count=FLAGS.max_branch_count,
-            num_depth_sectors=FLAGS.num_depth_sectors
+            disassociated_type  =FLAGS.disassociated_type,
+            min_branch_count    =FLAGS.min_branch_count,
+            max_branch_count    =FLAGS.max_branch_count,
+            num_depth_sectors   =FLAGS.num_depth_sectors
         )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={

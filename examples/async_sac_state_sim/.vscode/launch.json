@@ -27,7 +27,7 @@
                 "--replay_buffer_capacity", "1_000_000",    // Replay buffer capacity
 
                 // Fractal
-                "--replay_buffer_type", "fractal_symmetry_replay_buffer", // Use fractal symmetry replay buffer
+                "--replay_buffer_type", "fractal_symmetry_replay_buffer_parallel", // Use fractal symmetry replay buffer
                 "--branch_method", "constant",
                 "--split_method", "constant",
                 "--starting_branch_count", "27",            // Start with 27 branches                  
