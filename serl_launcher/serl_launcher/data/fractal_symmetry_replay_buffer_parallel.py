@@ -273,7 +273,21 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
     @jit
     def compute_transformation(self, data_dict, num_transforms):
         '''
-        Add fractal transformations (translations to matrix of observations)
+        Add fractal transformations (translations) to matrix of observations in jitted form.
+        - data_dict of transitions comes in, a matrix of size (num_transforms,num_transforms) comes out. 
+        - compute_deltas will create a matrix of (x,y) transformations and add them to the expanded observations.
+        - results for observations and next_observations saved in trans_o_m and trans_no_m.
+
+        Only this parent function needs to be jitted. Helper functions below do not need since they are never called independently.
+
+        Params:
+        - data_dict (DatasetDict) - dictionary of translations
+        - num_transforms (int) - number of transformations
+
+        Returns:
+        - trans_o_m (jnp.ndarray) - this is a (num_transform,num_transform) matrix
+        - trans_no_m (jnp.ndarray) - this is a (num_transform,num_transform) matrix
+
         '''
 
         # Generate observation matrices
@@ -284,7 +298,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         trans_no_m = self.compute_deltas( no_m)
 
         return trans_o_m,trans_no_m
-
 
     def compute_deltas(self,mat,type='grid'): # add type as jnp array
         '''
@@ -374,7 +387,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             # Get new current branch count based on depth
             self.current_branch_count = self.branch()
 
-            # When we enter into a new depth and new branch count update the transformations
+            # New depth -> new branch count. Hence update the transformations:
             if temp != self.current_branch_count:
 
                 # Get the number of transformations
@@ -383,20 +396,15 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 # Compute transformation deltas for observations
                 trans_o_m, trans_no_m = self.compute_transformation(data_dict, self.num_transforms)
 
-                insert_mat_replay_buffer(trans_o_m, trans_no_m)
+                # Insert to replay buffer
+                batch_insert(trans_o_m, trans_no_m)
 
         #else??
-
-        # Generate observation matrices with same
-        o_m, no_m = self.generate_obs_mats(data_dict, self.num_transforms)
-
-        # Add observations with deltas
-        transf_o_m = o_m + self.delta_o_m
-        transf_no_m = no_m + self.delta_no_m    
-
-        # Insert to replay buffer
-        batch_insert(transf_o_m, transf_no_m)    
-
+        # Compute transformation deltas for observations
+        trans_o_m, trans_no_m = self.compute_transformation(data_dict, self.num_transforms)
+  
+        # Insert as batch into replay buffer
+        batch_insert(trans_o_m, trans_no_m, data_dict)
 
         # Reset current_depth, timestep, and max_traj_length
         sector_4 = dt.now() if self.debug_time else None
@@ -412,21 +420,65 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             finish = dt.now()
             print(f"Splits: {(sector_2 - sector_1).total_seconds():.5f} : {(sector_3 - sector_2).total_seconds():.5f} : {(sector_4 - sector_3).total_seconds():.5f} : {(finish - sector_4).total_seconds():.5f}\nLaptime: {(finish - sector_1).total_seconds():.5f}")
 
-        def batch_insert(self, batch: DatasetDict):
+        def batch_insert(self, trans_o_m: jnp.ndarray, trans_no_m: jnp.ndarray, data_dict: DatasetDict) -> None:
             """
-            batch is a dict of NumPy arrays, each of shape (B, *field_shape).
-            We insert B new entries in one go.
+            Inserts N data-augmented transitions into self.dataset_dict all at once.
+
+            Args:
+            data_dict: original single transition dict with keys
+                - "observations"       shape (obs_dim,)
+                - "next_observations"  shape (obs_dim,)
+                - "actions"            shape (act_dim,)
+                - "rewards"            scalar or shape ()
+                - "dones"              scalar bool
+                - "masks"              scalar or shape ()
+            trans_o_m: jnp.ndarray (obs_dim, N) — each column is a new obs
+            trans_no_m: jnp.ndarray (obs_dim, N) — each column is new next_obs
+
+            Returns:
+            None.  Mutates self.dataset_dict and advances the insert pointer.
             """
-            B = batch["observations"].shape[0]
-            # wrap‐around indices
-            idxs = (np.arange(self._insert_index,
-                            self._insert_index + B) % self._capacity)
+        
+            # Extract number of transformations directly from the data
+            N = trans_o_m.shape[1]
 
-            # for each key, write the entire batch into self.dataset_dict
-            for k, array in batch.items():
-                # e.g. self.dataset_dict["observations"][idxs] = batch["observations"]
-                self.dataset_dict[k][idxs] = array
+            # Expand observations and next observations
+            # Transpose matrix of observations and next_observations as a numpy array: trans_o_m: (obs_dim, N) → we want (N, obs_dim) in NumPy
+            obs_batch     = np.array(trans_o_m.T)      # shape (N, obs_dim)
+            next_obs_batch= np.array(trans_no_m.T)     # shape (N, obs_dim)
 
-            # advance pointers
-            self._insert_index = idxs[-1] + 1
-            self._size = min(self._size + B, self._capacity)
+            # Expand actions:
+            actions = np.array(data_dict["actions"], dtype=np.float32)
+            
+            # If shape (act_dim,), broadcast to (N, act_dim)
+            actions_batch = np.broadcast_to(actions, (N,) + actions.shape)
+
+            # Rewards/dones/masks batches
+            rewards = float(data_dict["rewards"])
+            dones   = bool(data_dict["dones"])
+            masks   = bool(data_dict["masks"])  # check type
+
+            rewards_batch = np.full((N,), rewards, dtype=np.float32)
+            dones_batch   = np.full((N,), dones,   dtype=bool)
+            masks_batch   = np.full((N,), masks,   dtype=np.float32)
+
+            batch = {
+                "observations":      obs_batch,
+                "next_observations": next_obs_batch,
+                "actions":           actions_batch,
+                "rewards":           rewards_batch,
+                "dones":             dones_batch,
+                "masks":             masks_batch,
+                }
+            
+            # Create appropriate indeces for circular buffer. Consider overflow:
+            idxs = (self._insert_index + np.arange(N)) % self._capacity
+
+            # One‐shot write into each field
+            for key, arr in batch.items():  # arr has shape (N, *field_shape)
+                self.dataset_dict[key][idxs] = arr
+
+            # Update pointers
+            self._insert_index = int(idxs[-1]) + 1
+            self._size = min(self._size + N, self._capacity)
+            
