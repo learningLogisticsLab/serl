@@ -7,7 +7,7 @@ import gym
 
 # Data
 from serl_launcher.data.dataset import DatasetDict
-from serl_launcher.data.replay_buffer import ReplayBuffer
+from serl_launcher.data.fractal_symmetry_replay_buffer import FractalSymmetryReplayBuffer
 
 # Optimization of matrix operations
 import numpy as np
@@ -15,7 +15,10 @@ import jax
 from jax import jit
 import jax.numpy as jnp
 
-class FractalSymmetryReplayBuffer(ReplayBuffer):
+class FractalSymmetryReplayBufferParallel(FractalSymmetryReplayBuffer):
+    '''
+    Override .insert(), add batch_insert(), override __init__ if needed, etc.
+    '''
     def __init__(
         self,
         observation_space: gym.Space,
@@ -27,123 +30,29 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         workspace_width_method: str,
         kwargs: dict
     ):
+               
+        # parallel-specific setup...
+        super().__init__(
+            observation_space=observation_space,
+            action_space=action_space,
+            capacity=capacity,
+            branch_method=branch_method,
+            split_method=split_method,
+            workspace_width=workspace_width,
+            workspace_width_method=workspace_width_method,
+            kwargs=kwargs,
+        )
         
-        # Initialize values
-        self.debug_time = False
-        self.current_branch_count=1
-        self.update_max_traj_length = False
-        self.workspace_width = workspace_width
-        self.current_branch_count = 0
-        self.num_transforms = 0
-
-        # Set correct split function in self.split pointer.
-        method_check = "split_method"
-        match split_method:
-            case "time":
-                assert "max_depth" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "max_depth")
-                self.max_depth=kwargs["max_depth"]
-
-                assert "max_traj_length" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "max_traj_length")
-                self.max_traj_length=kwargs["max_traj_length"]
-
-                assert "alpha" in kwargs.keys(), self._handle_bad_args_(method_check, split_method, "alpha")
-                self.alpha=kwargs["alpha"]
-                update_max_traj_length = True
-                self.split = self.time_split 
-
-            case "constant":
-                self.split = self.constant_split
-
-            case "test":
-                self.split = self.test_split
-            case _:
-                raise ValueError("incorrect value passed to split_method")
-        
-        # Set correct branch function in self.branch pointer.
-        method_check = "branch_method"
-        match branch_method:
-            case "fractal":
-                assert "max_depth" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "max_depth")
-                self.max_depth=kwargs["max_depth"]
-
-                assert "branching_factor" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "branching_factor")
-                self.branching_factor=kwargs["branching_factor"]
-
-                assert "start_num" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "start_num")
-                self.start_num=kwargs["start_num"]
-
-                self.branch = self.fractal_branch
-            
-            case "contraction":
-                assert "start_num" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "start_num")
-                self.start_num=kwargs["start_num"]
-
-                # Add branching_factor for contraction method
-                assert "branching_factor" in kwargs.keys(), self._handle_bad_args_(method_check, branch_method, "branching_factor")
-                self.branching_factor = kwargs["branching_factor"]
-
-                self.branch = self.fractal_contraction
-            
-            case "linear":
-                raise NotImplementedError("linear branch method is not yet implemented")
-                # self.branch = self.linear_branch
-            
-            case "constant":
-                assert "starting_branch_count" in kwargs.keys(), self._handle_bad_args_("branch_method", branch_method, "starting_branch_count")
-                self.current_branch_count = kwargs["starting_branch_count"]
-                del kwargs["starting_branch_count"]
-
-                self.branch = self.constant_branch
-            
-            case "test":
-                self.branch = self.test_branch
-            
-            case _:
-                raise ValueError("incorrect value passed to branch_method")
-
-        # Set correct workspace_width function in self.workspace_width_method
-        match workspace_width_method:
-            
-            case "constant":
-                if workspace_width is None:
-                    raise ValueError("workspace_width must be defined for constant workspace width method")
-                self.get_workspace_width = self.ww_constant
-
-            case "decrease":
-                if workspace_width is None:
-                    raise ValueError("workspace_width must be defined for constant workspace width method")                
-                self.get_workspace_width = self.ww_decrease
-
-            case "increase":
-                if workspace_width is None:
-                    raise ValueError("workspace_width must be defined for constant workspace width method")                
-                self.get_workspace_width = self.ww_increase
-            
-            case _:
-                raise ValueError("incorrect value passed to workspace_width_method")            
-            
-        #---------------------------------------------------------------------------------------------------------------    
-        # Set the idx value (changes depending on environment/wrapper) of the x and y observations and next_observations
-        self.x_obs_idx = kwargs["x_obs_idx"]
-        self.y_obs_idx = kwargs["y_obs_idx"]
-
-        # Set initial fractal config values
-        self.timestep = 0
-        self.current_depth = 0
-        self.branch_index = [workspace_width/2]     # TODO: is this a correct initialization?
-        self.start_num = kwargs["start_num"]        # Used for fractal contractions
-
-        ## TODO: this is done in insert. Are we repeating work?
         # Create branch index to control how to set (x,y) offsets of different branches
-        self.branch_index = np.empty(self.current_branch_count, dtype=np.float32)
+        self.branch_index_parallel = np.empty(self.current_branch_count, dtype=np.float32)
 
         ## Set spacing for transformations (see more: https://www.notion.so/Fractal-Symmetry-Characterization-225cd3402f1a80948509ec86f0b6ee5e?source=copy_link#22bcd3402f1a8054b97ff0ab387923f7)
         # Set a constant value useful in the computation a standard offset between branches
-        constant = self.workspace_width/(2 * self.current_branch_count)
+        constant_parallel = self.workspace_width/(2 * self.current_branch_count)
 
         # Compute the translation offsets from left edge according to branch index:
         for i in range(0, self.current_branch_count):
-            self.branch_index[i] = (2 * i + 1) * constant
+            self.branch_index_parallel[i] = (2 * i + 1) * constant_parallel
 
         ## Warn about unused kwargs
         for k in kwargs.keys():
@@ -163,111 +72,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             action_space=action_space,
             capacity=capacity,
         )
-
-    # Missing arguments
-    def _handle_bad_args_(self, type: str, method: str, arg: str) :
-        return f"\033[31mERROR: \033[0m{arg} must be defined for {type} \"{method}\""
-    
-    # Update (x,y) observations with translational transformation
-    def transform(self, data_dict: DatasetDict, transform: np.array):
-        #   return data_dict with positional arguments += translation
-        data_dict["observations"] += transform
-        data_dict["next_observations"] += transform
-        
-    #--- BRANCH METHODS ---
-    # FOR TESTING ONLY
-    def test_branch(self):
-        self.current_depth += 1
-        return 1
-    
-    def fractal_branch(self):
-        '''
-        Computes the number of branches for the current depth using an exponential growth rule.
-
-        This method implements a "fractal branching" strategy, where the number of branches
-        increases exponentially with depth. At each depth `d`, the number of branches is calculated as:
-
-            num_branches = branching_factor ** current_depth
-
-        where:
-            - branching_factor: The base number of branches at each split.
-            - current_depth: The current depth in the fractal tree (self.current_depth).
-
-        Returns:
-            int: The computed number of branches for the current depth.
-        '''        
-        # return a new number of branches = branching_factor ^ depth
-        return self.branching_factor ** self.current_depth
-    
-    def fractal_contraction(self):
-        '''
-        Computes the number of branches for the current depth using a contraction rule.
-
-        This method implements a "fractal contraction" branching strategy, where the number
-        of branches decreases exponentially with depth. At each depth `d`, the number of branches
-        is calculated as:
-
-            num_branches = start_num / (branching_factor ** (d - 1))
-
-        where:
-            - start_num: The initial number of branches at depth 1.
-            - branching_factor: The factor by which the number of branches contracts at each depth.
-            - d: The current depth (self.current_depth).
-
-        Returns:
-            int: The computed number of branches for the current depth.
-        '''
-        # return 
-        b = self.branching_factor  
-        d = self.current_depth
-        top_b = self.start_num
-
-        return int( top_b/( b**(d-1) ))
-    
-    def constant_branch(self):
-        '''
-        Used to create pure translations with no further branching.
-        self.current_branch_count used to set the total number of transformations.
-        '''
-        # return current number of branches
-        return self.current_branch_count
-    
-    # REQUIRES TESTING
-    # def linear_branch(self):
-    #     # return a new number of branches = branches_count + n
-    #     return self.current_branch_count + self.branch_count_rate_of_change
-    
-
-    #---- SPLIT METHODS ---
-    # FOR TESTING ONLY
-    def test_split(self, data_dict: DatasetDict):
-        return True
-            
-    # REQUIRES TESTING
-    def time_split(self, data_dict: DatasetDict):
-        if self.timestep % (self.max_traj_length//self.max_depth) or self.current_depth >= self.max_depth:
-            return False
-        self.current_depth += 1
-        return True
-    
-    def constant_split(self, data_dict: DatasetDict):
-        return True
-
-    # Workspace Width Methods
-    def ww_constant(self):
-        return self.workspace_width
-    
-    def ww_increase(self):
-        '''
-        Increase workspace width with depth by 5cm. Lower density.
-        '''
-        return self.workspace_width + self.current_depth*0.05
-    
-    def ww_decrease(self):
-        '''
-        Decrease workspace width with depth by 5cm. Higher density.
-        '''
-        return self.workspace_width - self.current_depth*0.05         
 
     #---------------------------------------------
     @jit
@@ -316,9 +120,9 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             edge = self.get_workspace_width()/2.
 
             # 2. Get array of translation deltas for x,y offsets: ( (2i+1)/2b ) * ww
-            constant = self.get_workspace_width() / (2. * self.current_branch_count)
-            x_offset = ( (2 * i) + 1) * constant
-            y_offset = ( (2 * j) + 1) * constant
+            constant_parallel = self.get_workspace_width() / (2. * self.current_branch_count)
+            x_offset = ( (2 * i) + 1) * constant_parallel
+            y_offset = ( (2 * j) + 1) * constant_parallel
 
             # 3. Generate the matrix grid of transformations by element-wise sum of deltas on the matrix of env. observations. Use self.x_obs_idx & y_obs_idx.
             # Perform separate updates
@@ -394,16 +198,20 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.num_transforms = self.current_branch_count**2
 
                 # Compute transformation deltas for observations
+                sector_2 = dt.now() if self.debug_time else None
                 trans_o_m, trans_no_m = self.compute_transformation(data_dict, self.num_transforms)
 
                 # Insert to replay buffer
-                batch_insert(trans_o_m, trans_no_m)
+                sector_3 = dt.now() if self.debug_time else None
+                batch_insert(trans_o_m, trans_no_m, data_dict)
 
         #else??
         # Compute transformation deltas for observations
+        sector_2 = dt.now() if self.debug_time else None
         trans_o_m, trans_no_m = self.compute_transformation(data_dict, self.num_transforms)
   
         # Insert as batch into replay buffer
+        sector_3 = dt.now() if self.debug_time else None
         batch_insert(trans_o_m, trans_no_m, data_dict)
 
         # Reset current_depth, timestep, and max_traj_length
