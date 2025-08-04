@@ -2,6 +2,9 @@
     // VSCode debug configuration version
     "version": "0.2.0",
     "configurations": [
+        
+
+
         // LEARNER
         {
             // Configuration for the RL agent learner component
@@ -11,6 +14,7 @@
             "program": "${workspaceFolder}/async_sac_state_sim.py",
             // Command-line arguments matching run_learner.sh
             "args": [
+
                 "--learner",                                // REQUIRED: Indicates this is a learner instance
                 "--env", "PandaReachCube-v0",               // Environment to use
                 "--exp_name=PandaReachCube-v0_state_sim_3d_demos_5_const_27^1_batch_256_replay_1M_utd_8",          // Experiment name for wandb logging
@@ -32,7 +36,17 @@
                 // Demonstration data loading options
                 "--load_demos",                             // Load demo dataset
                 "--demo_dir",  "/data/data/serl/demos",
-                "--file_name", "data_franka_reach_random_5_2.npz" // Name of the demo file to load
+                "--file_name", "data_franka_reach_random_5_2.npz", // Name of the demo file to load
+
+                // Dissasociated Fractals
+                "--branch_method", "disassociated",   // branch method type
+                "--split_method", "disassociated",    // split method type                
+                "--disassociated_type", "octahedron", // Type of disassociated test to perform
+                "--min_branch_count", "3",            // Minimum branch count for disassociated testing
+                "--max_branch_count", "9",            // Maximum branch count for disassociated testing
+                "--num_depth_sectors", "13",          // Desired number of sectors to divide rollouts into for branch count splitting
+                "--alpha", "1"                        // alpha   
+
             ],
             "console": "integratedTerminal",                // Use integrated terminal to see output
             "justMyCode": false,                            // Allow stepping into libraries
@@ -76,7 +90,17 @@
                 // Demonstration data loading options
                 "--load_demos",                             // Load demo dataset
                 "--demo_dir",  "/data/data/serl/demos",
-                "--file_name", "data_franka_reach_random_5_2.npz" // Name of the demo file to load
+                "--file_name", "data_franka_reach_random_5_2.npz", // Name of the demo file to load
+
+                // Disassociated Fractals
+                "--branch_method", "disassociated",   // branch method type
+                "--split_method", "disassociated",    // split method type
+                "--disassociated_type", "octahedron", // Type of disassociated test to perform
+                "--min_branch_count", "3",            // Minimum branch count for disassociated testing
+                "--max_branch_count", "9",            // Maximum branch count for disassociated testing
+                "--num_depth_sectors", "13",          // Desired number of sectors to divide rollouts into for branch count splitting
+                "--alpha", "1"                        // alpha   
+
             ],
             "console": "integratedTerminal",                // Use integrated terminal to see output
             "justMyCode": false,                            // Allow stepping into libraries
