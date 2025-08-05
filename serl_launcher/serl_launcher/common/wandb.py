@@ -70,6 +70,7 @@ class WandBLogger(object):
         self.run = wandb.init(
             config=self._variant,
             project=self.config.project,
+            name=self.config.name,
             entity=self.config.entity,
             group=self.config.group,
             tags=self.config.tag,

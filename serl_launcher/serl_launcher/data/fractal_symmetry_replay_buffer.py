@@ -68,42 +68,30 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         del kwargs[value]
 
     def _handle_methods_(self, kwargs):
-
-        # Initialize split_method
-        match self.split_method:
-            case "time":
-                self._handle_method_arg_("max_depth", "split_method", self.split_method, kwargs)
-                self._handle_method_arg_("max_traj_length", "split_method", self.split_method, kwargs)
-                self._handle_method_arg_("alpha", "split_method", self.split_method, kwargs)
-                
-                self.update_max_traj_length = True
-                self.split = self.time_split 
-
-            case "constant":
-                self.split = self.constant_split
-                
-            case "test":
-                self.split = self.test_split
-            case _:
-                raise ValueError("incorrect value passed to split_method")
         
         # Initialize branch_method
         match self.branch_method:
+
             case "fractal":
                 self._handle_method_arg_("max_depth", "branch_method", self.branch_method, kwargs)
                 self._handle_method_arg_("branching_factor", "branch_method", self.branch_method, kwargs)
 
                 self.branch = self.fractal_branch
+                if not self.split_method:
+                    self.split_method = "time"
             
             case "contraction":
                 self._handle_method_arg_("max_depth", "branch_method", self.branch_method, kwargs)
                 self._handle_method_arg_("branching_factor", "branch_method", self.branch_method, kwargs)
 
                 self.branch = self.fractal_contraction
+                if not self.split_method:
+                    self.split_method = "time"
             
             case "linear":
                 raise NotImplementedError("linear branch method is not yet implemented")
                 # self.branch = self.linear_branch
+                
 
             case "disassociated":
                 self._handle_method_arg_("min_branch_count", "branch_method", self.branch_method, kwargs)
@@ -123,38 +111,36 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.disassociated_type = kwargs["disassociated_type"]
                 del kwargs["disassociated_type"]
                 self.branch = self.disassociated_branch
+                if not self.split_method:
+                    self.split_method = "time"
             
             case "constant":
                 self._handle_method_arg_("starting_branch_count", "branch_method", self.branch_method, kwargs)
 
                 self.branch = self.constant_branch
-            
-            case "test":
-                self.branch = self.test_branch
+                if not self.split_method:
+                    self.split_method = "never"
             
             case _:
                 raise ValueError("incorrect value passed to branch_method")
 
-        # Initialize workspace_width_method
-        # match self.workspace_width_method:
-            
-        #     case "constant":
-        #         if self.workspace_width is None:
-        #             raise ValueError("workspace_width must be defined for constant workspace width method")
-        #         self.get_workspace_width = self.ww_constant
+        match self.split_method:
+            case "time":
+                self._handle_method_arg_("max_depth", "split_method", self.split_method, kwargs)
+                self._handle_method_arg_("max_traj_length", "split_method", self.split_method, kwargs)
+                self._handle_method_arg_("alpha", "split_method", self.split_method, kwargs)
+                
+                self.update_max_traj_length = True
+                self.split = self.time_split 
 
-        #     case "decrease":
-        #         if self.workspace_width is None:
-        #             raise ValueError("workspace_width must be defined for constant workspace width method")                
-        #         self.get_workspace_width = self.ww_decrease
-
-        #     case "increase":
-        #         if self.workspace_width is None:
-        #             raise ValueError("workspace_width must be defined for constant workspace width method")                
-        #         self.get_workspace_width = self.ww_increase
+            case "constant":
+                self.split = self.constant_split
             
-        #     case _:
-        #         raise ValueError("incorrect value passed to workspace_width_method")
+            case "never":
+                self.split = self.never_split
+                
+            case _:
+                raise ValueError("incorrect value passed to split_method")
         
         if self.starting_branch_count:
             self.current_branch_count = self.starting_branch_count
@@ -179,12 +165,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
 
         self.transform_deltas[:, self.x_obs_idx] = x_deltas
         self.transform_deltas[:, self.y_obs_idx] = y_deltas
-    
-    #--- BRANCH METHODS ---
-    # FOR TESTING ONLY
-    def test_branch(self):
-        self.current_depth += 1
-        return 1
     
     def fractal_branch(self):
         '''
@@ -249,75 +229,43 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         elif self.disassociated_type == "octahedron":
             return int((self.min_branch_count - self.max_branch_count)/(self.max_depth/2) * np.abs(self.current_depth - (self.max_depth/2)) + self.max_branch_count)
         
-    # REQUIRES TESTING
     def linear_branch(self):
         # return a new number of branches = branches_count + n
-        return self.current_branch_count + self.branch_count_rate_of_change
-    
-
-    #---- SPLIT METHODS ---
-    # FOR TESTING ONLY
-    def test_split(self, data_dict: DatasetDict):
-        return True
+        return self.current_branch_count + self.branching_factor
             
-    # REQUIRES TESTING
     def time_split(self, data_dict: DatasetDict):
         if self.timestep % (self.max_traj_length//self.max_depth) or self.current_depth >= self.max_depth:
             return False
         self.current_depth += 1
-        return True
-    
+        return True 
+
     def constant_split(self, data_dict: DatasetDict):
+        self.current_depth += 1
         return True
-
-    # Workspace Width Methods
-    def ww_constant(self):
-        return self.workspace_width
     
-    def ww_increase(self):
-        '''
-        Increase workspace width with depth by 5cm. Lower density.
-        '''
-        return self.workspace_width + 0.05
+    def never_split(self, data_dict: DatasetDict):
+        return False
     
-    def ww_decrease(self):
-        '''
-        Decrease workspace width with depth by 5cm. Higher density.
-        '''
-        return self.workspace_width - 0.05         
-
-    #---------------------------------------------
-    # Now perform fractal transformations. 
-    # Currently iterating through x,y loop (slow).
-    # TODO: multigpu processing.
-
     def insert(self, data_dict_not: DatasetDict):
 
-        # Time
-        sector_1 = dt.now() if self.debug_time else None
         data_dict = copy.deepcopy(data_dict_not)
 
         # Update number of branches if needed
         if self.split(data_dict):
             temp = self.current_branch_count
             self.current_branch_count = self.branch()
-            # self.workspace_width = self.get_workspace_width()
             # Update transform_deltas if needed
             if temp != self.current_branch_count:
                 self.generate_transform_deltas()
         
         # Initialize to extreme x and y
-        sector_2 = dt.now() if self.debug_time else None
-
         base_diff = -self.workspace_width/2
         data_dict["observations"][self.x_obs_idx] += base_diff
         data_dict["observations"][self.y_obs_idx] += base_diff
         data_dict["next_observations"][self.x_obs_idx] += base_diff
         data_dict["next_observations"][self.y_obs_idx] += base_diff
 
-        # Transform and insert transitions (multiprocessing in the future)
-        sector_3 = dt.now() if self.debug_time else None
-
+        # Transform and insert transitions
         num_transforms = self.current_branch_count ** 2
         obs_batch = np.tile(data_dict["observations"], (num_transforms, 1))
         next_obs_batch = np.tile(data_dict["next_observations"], (num_transforms, 1))
@@ -335,15 +283,9 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         super().insert(data_dict, batch_size=num_transforms)
 
         # Reset current_depth, timestep, and max_traj_length
-        sector_4 = dt.now() if self.debug_time else None
         self.timestep += 1
         if data_dict["dones"][0]:
             self.current_depth = 0
             if self.update_max_traj_length:
                 self.max_traj_length = int(self.timestep * self.alpha + self.max_traj_length * (1 - self.alpha))
             self.timestep = 0
-
-
-        if self.debug_time:
-            finish = dt.now()
-            print(f"Splits: {(sector_2 - sector_1).total_seconds():.5f} : {(sector_3 - sector_2).total_seconds():.5f} : {(sector_4 - sector_3).total_seconds():.5f} : {(finish - sector_4).total_seconds():.5f}\nLaptime: {(finish - sector_1).total_seconds():.5f}")

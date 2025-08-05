@@ -180,6 +180,7 @@ def make_trainer_config(port_number: int = 5488, broadcast_port: int = 5489):
 
 def make_wandb_logger(
     project: str = "agentlace",
+    name: str = "placeholder_run_name",
     description: str = "serl_launcher",
     debug: bool = False,
 ):
@@ -187,6 +188,7 @@ def make_wandb_logger(
     wandb_config.update(
         {
             "project": project,
+            "name": name,
             "exp_descriptor": description,
             "tag": description,
         }

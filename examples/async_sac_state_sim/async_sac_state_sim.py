@@ -34,6 +34,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string("env", "HalfCheetah-v4", "Name of environment.")
 flags.DEFINE_string("agent", "sac", "Name of agent.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
+flags.DEFINE_string("run_name", None, "Name of run for wandb logging")
 flags.DEFINE_integer("max_traj_length", 100, "Maximum length of trajectory.")
 flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_bool("save_model", False, "Whether to save model.")
@@ -60,32 +61,19 @@ flags.DEFINE_integer("checkpoint_period", 0, "Period to save checkpoints.")
 flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
 
 # flags for replay buffer
-flags.DEFINE_string("replay_buffer_type", "replay_buffer", "Which type of replay buffer to use")
+flags.DEFINE_string("replay_buffer_type", "replay_buffer", "Which replay buffer to use")
 flags.DEFINE_string("branch_method", None, "Method for how many branches to generate")
-flags.DEFINE_string("split_method", None, "Method for when to change number of branches generated") # Remember to default None
-flags.DEFINE_float("workspace_width", 0.5, "Workspace width in centimeters") # Remember to default None
-flags.DEFINE_integer("max_depth",None,"max_depth")
-flags.DEFINE_integer("depth", None, "Total layers of depth")
-flags.DEFINE_integer("dendrites", None, "Dendrites for fractal branching")
-flags.DEFINE_integer("timesplit_freq", None, "Frequency of splits according to time")
-flags.DEFINE_integer("branch_count_rate_of_change", None, "Rate of change for linear branching")
-flags.DEFINE_integer("starting_branch_count", 1, "Initial number of branches")
-flags.DEFINE_integer("branching_factor", None, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch and fractal_contraction
+flags.DEFINE_string("split_method", None, "Method for when to change number of branches generated")
+flags.DEFINE_float("workspace_width", 0.5, "Workspace width in meters")
+flags.DEFINE_integer("max_depth",None,"Maximum layers of depth")
+flags.DEFINE_integer("starting_branch_count", None, "Initial number of branches")
+flags.DEFINE_integer("branching_factor", None, "Rate of change of branches per dimension (x,y)") # For fractal_branch and fractal_contraction
 flags.DEFINE_integer("alpha",None,"alpha value")
-
-# Contraction
-flags.DEFINE_integer("start_num",81, "Initial number of branch on the first depth") # For Fractal Cntraction
-
-# Disassociated
-flags.DEFINE_enum("disassociated_type", "octahedron", ["octahedron", "hourglass"], 
+flags.DEFINE_enum("disassociated_type", None, ["octahedron", "hourglass"], 
                   "Type of disassociated fracal rollout. Octahedron: expand from min to max then contract to min,"
                    + " Hourglass: Contract from max to min then expand to max")
-flags.DEFINE_integer("min_branch_count", 1, "Minimum number of branches for disassociated fractal rollout")
-flags.DEFINE_integer("max_branch_count", 1, "Maximum number of branches for disassociated fractal rollout")
-flags.DEFINE_integer("num_depth_sectors", 1, "Desired number of sectors to divide rollout into for branch count splitting")
-
-# Density Workspace width
-flags.DEFINE_string("workspace_width_method", 'constant', 'Controls workspace width dimensions configurations')
+flags.DEFINE_integer("min_branch_count", None, "Minimum number of branches for disassociated fractal rollout")
+flags.DEFINE_integer("max_branch_count", None, "Maximum number of branches for disassociated fractal rollout")
 
 # Debug
 flags.DEFINE_boolean(
@@ -222,6 +210,7 @@ def learner(rng, agent: SACAgent, replay_buffer, replay_iterator):
     # set up wandb and logging
     wandb_logger = make_wandb_logger(
         project=FLAGS.exp_name,
+        name=FLAGS.run_name,
         description=FLAGS.exp_name or FLAGS.env,
         debug=FLAGS.debug,
     )
@@ -358,29 +347,23 @@ def main(_):
         sampling_rng = jax.device_put(sampling_rng, device=sharding.replicate())
         replay_buffer = make_replay_buffer(
             env,
-            capacity            =FLAGS.replay_buffer_capacity,
-            rlds_logger_path    =FLAGS.log_rlds_path,
-            type                =FLAGS.replay_buffer_type,
-            branch_method       =FLAGS.branch_method,
-            split_method        =FLAGS.split_method,
-            branching_factor    =FLAGS.branching_factor,
+            capacity=FLAGS.replay_buffer_capacity,
+            rlds_logger_path=FLAGS.log_rlds_path,
+            type=FLAGS.replay_buffer_type,
+            branch_method=FLAGS.branch_method,
+            split_method=FLAGS.split_method,
+            branching_factor=FLAGS.branching_factor,
             starting_branch_count=FLAGS.starting_branch_count,
-            workspace_width     =FLAGS.workspace_width,
-            max_traj_length     =FLAGS.max_traj_length,
-            x_obs_idx           =np.array([0,4]),
-            y_obs_idx           =np.array([1,5]),
-            preload_rlds_path   =FLAGS.preload_rlds_path,
-            max_depth           =FLAGS.max_depth,
-            alpha               =FLAGS.alpha,
-            # Contraction
-            start_num           =FLAGS.start_num,
-            # Workspace Width Density
-            workspace_width_method=FLAGS.workspace_width_method,
-            # Disassociated
-            disassociated_type  =FLAGS.disassociated_type,
-            min_branch_count    =FLAGS.min_branch_count,
-            max_branch_count    =FLAGS.max_branch_count,
-            num_depth_sectors   =FLAGS.num_depth_sectors
+            workspace_width=FLAGS.workspace_width,
+            max_traj_length=FLAGS.max_traj_length,
+            x_obs_idx=np.array([0,4]),
+            y_obs_idx=np.array([1,5]),
+            preload_rlds_path=FLAGS.preload_rlds_path,
+            max_depth=FLAGS.max_depth,
+            alpha=FLAGS.alpha,
+            disassociated_type=FLAGS.disassociated_type,
+            min_branch_count=FLAGS.min_branch_count,
+            max_branch_count=FLAGS.max_branch_count,
         )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={

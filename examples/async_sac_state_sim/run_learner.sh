@@ -17,8 +17,9 @@ export CHECKPOINT_DIR="/data/fsrb_testing/checkpoints-$TIMESTAMP" && \
 python async_sac_state_sim.py "$@"\
     --learner \
     --env PandaReachCube-v0 \
-    --exp_name PandaReachCube-v0_state_sim_3d_parallel_const_3^1_batch_256_replay_1M_utd_8 \
-    --replay_buffer_type fractal_symmetry_replay_buffer_parallel \
+    --exp_name this_is_a_fake_test_experiment \
+    --run_name this_is_a_custom_run_name \
+    --replay_buffer_type fractal_symmetry_replay_buffer \
     --max_steps 50_000 \
     --training_starts 1000 \
     --random_steps 1000 \
@@ -30,15 +31,13 @@ python async_sac_state_sim.py "$@"\
     --split_method constant \
     --starting_branch_count 3 \
     --workspace_width 0.5 \
+    --alpha 1 \
+    # --debug # wandb is disabled when debug
     # --load_demos \
     # --demo_dir /data/data/serl/demos \
     # --file_name data_franka_reach_random_5_2.npz \
     # --max_traj_length 100 \
     # --max_depth 4 \    
-    # --start_num 81 \
-    --alpha 1 \
     # --branching_factor 3 \
     # --checkpoint_period 10000 \
     # --checkpoint_path "$CHECKPOINT_DIR" \
-    --debug # wandb is disabled when debug
-    #--render 
