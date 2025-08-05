@@ -19,6 +19,7 @@ from serl_launcher.data.data_store import (
     MemoryEfficientReplayBufferDataStore,
     ReplayBufferDataStore,
     FractalSymmetryReplayBufferDataStore,
+    MemoryEfficientFractalReplayBufferDataStore,
 )
 
 ##############################################################################
@@ -254,6 +255,14 @@ def make_replay_buffer(
         )
     elif type == "memory_efficient_replay_buffer":
         replay_buffer = MemoryEfficientReplayBufferDataStore(
+            env.observation_space,
+            env.action_space,
+            capacity=capacity,
+            rlds_logger=rlds_logger,
+            image_keys=image_keys,
+        )
+    elif type == "memory_efficient_fractal_replay_buffer":
+        replay_buffer = MemoryEfficientFractalReplayBufferDataStore(
             env.observation_space,
             env.action_space,
             capacity=capacity,

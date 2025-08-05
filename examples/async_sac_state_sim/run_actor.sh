@@ -20,7 +20,6 @@ python async_sac_state_sim.py \
     --exp_name PandaReachCube-v0_state_sim_demos_5_const_27^1_batch_256_replay_1M_utd_8 \
     --seed 0 \
     --replay_buffer_type fractal_symmetry_replay_buffer \
-    --seed 0 \
     --max_steps 300_000 \
     --training_starts 1000 \
     --critic_actor_ratio 8 \

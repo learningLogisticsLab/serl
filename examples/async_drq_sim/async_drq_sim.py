@@ -325,9 +325,9 @@ def main(_):
     else:
         env = gym.make(FLAGS.env)
 
-    if FLAGS.env == "PandaPickCube-v0":
+    if FLAGS.env == "PandaReachCube-v0":
         env = gym.wrappers.FlattenObservation(env)
-    if FLAGS.env == "PandaPickCubeVision-v0":
+    if FLAGS.env == "PandaReachCubeVision-v0":
         env = SERLObsWrapper(env)
         env = ChunkingWrapper(env, obs_horizon=1, act_exec_horizon=None)
 
@@ -352,9 +352,9 @@ def main(_):
         sampling_rng = jax.device_put(sampling_rng, device=sharding.replicate())
         replay_buffer = make_replay_buffer(
             env,
+            type="memory_efficient_with_replay_buffer",
             capacity=FLAGS.replay_buffer_capacity,
             rlds_logger_path=FLAGS.log_rlds_path,
-            type="memory_efficient_replay_buffer",
             image_keys=image_keys,
         )
 
