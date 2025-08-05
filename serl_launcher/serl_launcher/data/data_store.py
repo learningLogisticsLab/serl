@@ -11,10 +11,6 @@ from serl_launcher.data.fractal_symmetry_replay_buffer import (
     FractalSymmetryReplayBuffer
 )
 
-from serl_launcher.data.fractal_symmetry_replay_buffer_parallel import (
-    FractalSymmetryReplayBufferParallel
-)
-
 from agentlace.data.data_store import DataStoreBase
 
 from typing import List, Optional, TypeVar
@@ -154,14 +150,16 @@ class FractalSymmetryReplayBufferDataStore(FractalSymmetryReplayBuffer, DataStor
         observation_space: gym.Space,
         action_space: gym.Space,
         capacity: int,
+        workspace_width: int,
+        x_obs_idx,
+        y_obs_idx,
         branch_method: str,
         split_method: str,
-        workspace_width: int,
         workspace_width_method: str,
         rlds_logger: Optional[RLDSLogger] = None,
         **kwargs: dict,
     ):
-        FractalSymmetryReplayBuffer.__init__(self, observation_space, action_space, capacity, branch_method, split_method, workspace_width, workspace_width_method,**kwargs)
+        FractalSymmetryReplayBuffer.__init__(self, observation_space, action_space, capacity, workspace_width, x_obs_idx, y_obs_idx, branch_method, split_method, workspace_width_method,**kwargs)
         DataStoreBase.__init__(self, capacity)
         self._lock = Lock()
         self._logger = None
@@ -201,68 +199,6 @@ class FractalSymmetryReplayBufferDataStore(FractalSymmetryReplayBuffer, DataStor
     def sample(self, *args, **kwargs):
         with self._lock:
             return super(FractalSymmetryReplayBufferDataStore, self).sample(*args, **kwargs)
-
-    # NOTE: method for DataStoreBase
-    def latest_data_id(self):
-        return self._insert_index
-
-    # NOTE: method for DataStoreBase
-    def get_latest_data(self, from_id: int):
-        raise NotImplementedError  # TODO
-
-class FractalSymmetryReplayBufferParallelDataStore(FractalSymmetryReplayBufferParallel, DataStoreBase):
-    def __init__(
-        self,
-        observation_space: gym.Space,
-        action_space: gym.Space,
-        capacity: int,
-        branch_method: str,
-        split_method: str,
-        workspace_width: int,
-        workspace_width_method: str,
-        rlds_logger: Optional[RLDSLogger] = None,
-        **kwargs: dict,
-    ):
-        FractalSymmetryReplayBufferParallel.__init__(self, observation_space, action_space, capacity, branch_method, split_method, workspace_width, workspace_width_method,**kwargs)
-        DataStoreBase.__init__(self, capacity)
-        self._lock = Lock()
-        self._logger = None
-
-        if rlds_logger:
-            self.step_type = RLDSStepType.TERMINATION  # to init the state for restart
-            self._logger = rlds_logger
-
-    # ensure thread safety
-    def insert(self, data):
-        with self._lock:
-            super(FractalSymmetryReplayBufferParallelDataStore, self).insert(data)
-
-            # TODO: Data logging currently does NOT WORK as shown if we want to log our transformed transitions
-            # add data to the rlds logger
-            if self._logger:
-                if self.step_type in {
-                    RLDSStepType.TERMINATION,
-                    RLDSStepType.TRUNCATION,
-                }:
-                    self.step_type = RLDSStepType.RESTART
-                elif not data["masks"]:  # 0 is done, 1 is not done
-                    self.step_type = RLDSStepType.TERMINATION
-                elif data["dones"]:
-                    self.step_type = RLDSStepType.TRUNCATION
-                else:
-                    self.step_type = RLDSStepType.TRANSITION
-
-                self._logger(
-                    action=data["actions"],
-                    obs=data["next_observations"],  # TODO: check if this is correct
-                    reward=data["rewards"],
-                    step_type=self.step_type,
-                )
-
-    # ensure thread safety
-    def sample(self, *args, **kwargs):
-        with self._lock:
-            return super(FractalSymmetryReplayBufferParallelDataStore, self).sample(*args, **kwargs)
 
     # NOTE: method for DataStoreBase
     def latest_data_id(self):
