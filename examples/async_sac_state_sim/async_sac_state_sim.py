@@ -68,7 +68,7 @@ flags.DEFINE_float("workspace_width", 0.5, "Workspace width in meters")
 flags.DEFINE_integer("max_depth",None,"Maximum layers of depth")
 flags.DEFINE_integer("starting_branch_count", None, "Initial number of branches")
 flags.DEFINE_integer("branching_factor", None, "Rate of change of branches per dimension (x,y)") # For fractal_branch and fractal_contraction
-flags.DEFINE_integer("alpha",None,"alpha value")
+flags.DEFINE_float("alpha",None,"alpha value")
 flags.DEFINE_enum("disassociated_type", None, ["octahedron", "hourglass"], 
                   "Type of disassociated fracal rollout. Octahedron: expand from min to max then contract to min,"
                    + " Hourglass: Contract from max to min then expand to max")
