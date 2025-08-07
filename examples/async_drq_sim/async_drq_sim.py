@@ -95,7 +95,7 @@ def actor(agent: DrQAgent, data_store, env, sampling_rng):
     client = TrainerClient(
         "actor_env",
         FLAGS.ip,
-        make_trainer_config(),
+        make_trainer_config(port_number=3488, broadcast_port=3489),
         data_store,
         wait_for_server=True,
     )
@@ -207,7 +207,7 @@ def learner(
         return {}  # not expecting a response
 
     # Create server
-    server = TrainerServer(make_trainer_config(), request_callback=stats_callback)
+    server = TrainerServer(make_trainer_config(port_number=3488, broadcast_port=3489), request_callback=stats_callback)
     server.register_data_store("actor_env", replay_buffer)
     server.start(threaded=True)
 
@@ -325,9 +325,9 @@ def main(_):
     else:
         env = gym.make(FLAGS.env)
 
-    if FLAGS.env == "PandaReachCube-v0":
+    if FLAGS.env == "PandaPickCube-v0":
         env = gym.wrappers.FlattenObservation(env)
-    if FLAGS.env == "PandaReachCubeVision-v0":
+    if FLAGS.env == "PandaPickCubeVision-v0":
         env = SERLObsWrapper(env)
         env = ChunkingWrapper(env, obs_horizon=1, act_exec_horizon=None)
 
