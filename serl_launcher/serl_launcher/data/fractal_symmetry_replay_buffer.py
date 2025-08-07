@@ -63,6 +63,8 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         self.generate_transform_deltas()
 
     def _handle_method_arg_(self, value, method_type, method, kwargs):
+        if hasattr(self, value):
+            return
         assert value in kwargs.keys(), f"\033[31mERROR: \033[0m{value} must be defined for {method_type} \"{method}\""
         setattr(FractalSymmetryReplayBuffer, value, kwargs[value])
         del kwargs[value]
@@ -142,9 +144,8 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             case _:
                 raise ValueError("incorrect value passed to split_method")
         
-        if self.starting_branch_count:
+        if hasattr(self, "starting_branch_count"):
             self.current_branch_count = self.starting_branch_count
-            delattr(FractalSymmetryReplayBuffer, "starting_branch_count")
     
     def generate_transform_deltas(self):
         

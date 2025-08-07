@@ -40,6 +40,10 @@ flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_bool("save_model", False, "Whether to save model.")
 flags.DEFINE_integer("batch_size", 256, "Batch size.")
 flags.DEFINE_integer("critic_actor_ratio", 8, "critic to actor update ratio.")
+flags.DEFINE_integer("port_number", 5488, "Port for server")
+flags.DEFINE_integer("broadcast_port", 5489, "Port for server")
+flags.DEFINE_boolean("wandb_offline", False, "Save locally to be synced with 'wandb sync <wandb_dir>")
+flags.DEFINE_string("wandb_output_dir", None, "Where to save local wandb files")
 
 flags.DEFINE_integer("max_steps", 1000000, "Maximum number of training steps.")
 flags.DEFINE_integer("replay_buffer_capacity", 1000000, "Replay buffer capacity.")
@@ -76,9 +80,7 @@ flags.DEFINE_integer("min_branch_count", None, "Minimum number of branches for d
 flags.DEFINE_integer("max_branch_count", None, "Maximum number of branches for disassociated fractal rollout")
 
 # Debug
-flags.DEFINE_boolean(
-    "debug", False, "Debug mode."
-)  # debug mode will disable wandb logging
+flags.DEFINE_boolean("debug", False, "Debug mode.")  # debug mode will disable wandb logging
 
 # Logging
 flags.DEFINE_string("log_rlds_path", None, "Path to save RLDS logs.")
@@ -104,7 +106,7 @@ def actor(agent: SACAgent, data_store, env, sampling_rng, demos_handler=None):
     client = TrainerClient(
         "actor_env",
         FLAGS.ip,
-        make_trainer_config(),
+        make_trainer_config(port_number=FLAGS.port_number, broadcast_port=FLAGS.broadcast_port),
         data_store,
         wait_for_server=True,
     )
@@ -212,7 +214,9 @@ def learner(rng, agent: SACAgent, replay_buffer, replay_iterator):
         project=FLAGS.exp_name,
         name=FLAGS.run_name,
         description=FLAGS.exp_name or FLAGS.env,
+        wandb_output_dir=FLAGS.wandb_output_dir,
         debug=FLAGS.debug,
+        offline=FLAGS.wandb_offline,
     )
 
     # To track the step in the training loop
@@ -225,7 +229,7 @@ def learner(rng, agent: SACAgent, replay_buffer, replay_iterator):
         return {}  # not expecting a response
 
     # Create server
-    server = TrainerServer(make_trainer_config(), request_callback=stats_callback)
+    server = TrainerServer(make_trainer_config(port_number=FLAGS.port_number, broadcast_port=FLAGS.broadcast_port), request_callback=stats_callback)
     server.register_data_store("actor_env", replay_buffer)
     server.start(threaded=True)
 

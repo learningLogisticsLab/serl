@@ -182,7 +182,9 @@ def make_wandb_logger(
     project: str = "agentlace",
     name: str = "placeholder_run_name",
     description: str = "serl_launcher",
+    wandb_output_dir: str = None,
     debug: bool = False,
+    offline: bool = False,
 ):
     wandb_config = WandBLogger.get_default_config()
     wandb_config.update(
@@ -196,7 +198,9 @@ def make_wandb_logger(
     wandb_logger = WandBLogger(
         wandb_config=wandb_config,
         variant={},
+        wandb_output_dir=wandb_output_dir,
         debug=debug,
+        offline=offline
     )
     return wandb_logger
 

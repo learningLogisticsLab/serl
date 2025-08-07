@@ -6,6 +6,7 @@ from socket import gethostname
 import absl.flags as flags
 import ml_collections
 import wandb
+import uuid
 
 
 def _recursive_flatten_dict(d: dict):
@@ -41,12 +42,13 @@ class WandBLogger(object):
         variant,
         wandb_output_dir=None,
         debug=False,
+        offline=False,
     ):
         self.config = wandb_config
         if self.config.unique_identifier == "":
             self.config.unique_identifier = datetime.datetime.now().strftime(
-                "%m-%d-%Y-%H-%M-%S"
-            )
+                "%m-%d-%Y"
+            ) + str(uuid.uuid1())
 
         self.config.experiment_id = (
             self.experiment_id
@@ -65,7 +67,10 @@ class WandBLogger(object):
         if debug:
             mode = "disabled"
         else:
-            mode = "online"
+            if offline:
+                mode = "offline"
+            else:
+                mode = "online"
 
         self.run = wandb.init(
             config=self._variant,
