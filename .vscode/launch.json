@@ -13,14 +13,14 @@
             // Command-line arguments matching the learner shell script
             "args": [
                 "--learner",                                // REQUIRED: Indicates this is a learner instance
-                "--env", "PandaReachCubeVision-v0",               // Environment to use
-                "--exp_name", "PandaReachCubeVision-v0-drq-baselines", // Experiment name for wandb logging
+                "--env", "PandaPickCubeVision-v0",               // Environment to use
+                "--exp_name", "PandaPickCubeVision-v0-drq-baselines", // Experiment name for wandb logging
                 "--seed", "0",                              // Random seed for reproducibility
                 "--training_starts", "1_000",               // Start training after buffer has this many samples
                 "--max_steps", "50_000",                    // Maximum training steps
                 "--critic_actor_ratio", "4",                // Critic-to-actor update ratio (4 for DRQ)
                 "--encoder_type", "resnet-pretrained",      // Use pretrained ResNet encoder
-                "--demo_path", "${workspaceFolder}/examples/async_drq_sim/franka_lift_cube_image_20_trajs.pkl" // Demo data path
+                "--demo_path", "${workspaceFolder}/examples/async_drq_sim/pick-demo.pkl" // Demo data path
                 // Note: --debug flag commented out (wandb is disabled when debug is enabled)
             ],
             "console": "integratedTerminal",                // Use integrated terminal to see output
@@ -46,9 +46,9 @@
             // Command-line arguments matching the actor shell script
             "args": [
                 "--actor",                                  // REQUIRED: Indicates this is an actor instance
-                "--env", "PandaReachCubeVision-v0",               // Environment to use
+                "--env", "PandaPickCubeVision-v0",               // Environment to use
                 "--render",                                 // Enable rendering
-                "--exp_name", "PandaReachCubeVision-v0-drq-baselines", // Experiment name for wandb logging
+                "--exp_name", "PandaPickCubeVision-v0-drq-baselines", // Experiment name for wandb logging
                 "--seed", "0",                              // Random seed for reproducibility
                 "--random_steps", "1000",                   // Number of random steps at beginning
                 "--max_steps", "50_000",                    // Maximum training steps

@@ -413,7 +413,7 @@ def main():
     env.close()
     
     ## Write data to demos folder. Assumes mounted /data folder and internal data folder.
-    script_dir = '/data/data/serl/demos'    
+    script_dir = ' ~/Code/serl/demos/demos'    
 
     # Create output filename with configuration details
     fileName = "data_" + robot + "_" + task
