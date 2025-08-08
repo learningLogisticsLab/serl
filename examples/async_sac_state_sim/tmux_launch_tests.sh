@@ -23,6 +23,7 @@ do
 
 done
 # Attach to the tmux session
+tmux kill-window -t serl_sessoin:0
 tmux attach-session -t serl_session
 
 # kill the tmux session by running the following command
