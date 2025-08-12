@@ -9,5 +9,5 @@ python async_drq_sim.py "$@" \
     --max_steps 50_000 \
     --critic_actor_ratio 4 \
     --encoder_type resnet-pretrained \
-    --demo_path reach-demo.pkl \
+    --demo_path pick-demo.pkl \
     # --debug # wandb is disabled when debug

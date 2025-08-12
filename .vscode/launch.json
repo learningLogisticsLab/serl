@@ -76,11 +76,6 @@
             "name": "DRQ Learner + Actor",
             "configurations": ["Python: DRQ Learner", "Python: DRQ Actor"]
         },
-        {
-            // Launch both DRQ learner and actor in debug mode
-            "name": "DRQ Learner + Actor (Debug Mode)",
-            "configurations": ["Python: DRQ Learner (Debug Mode)", "Python: DRQ Actor (Debug Mode)"]
-        }
     ],
 
 }
