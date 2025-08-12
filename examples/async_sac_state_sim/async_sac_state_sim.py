@@ -34,11 +34,16 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string("env", "HalfCheetah-v4", "Name of environment.")
 flags.DEFINE_string("agent", "sac", "Name of agent.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
+flags.DEFINE_string("run_name", None, "Name of run for wandb logging")
 flags.DEFINE_integer("max_traj_length", 100, "Maximum length of trajectory.")
 flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_bool("save_model", False, "Whether to save model.")
 flags.DEFINE_integer("batch_size", 256, "Batch size.")
 flags.DEFINE_integer("critic_actor_ratio", 8, "critic to actor update ratio.")
+flags.DEFINE_integer("port_number", 5488, "Port for server")
+flags.DEFINE_integer("broadcast_port", 5489, "Port for server")
+flags.DEFINE_boolean("wandb_offline", False, "Save locally to be synced with 'wandb sync <wandb_dir>")
+flags.DEFINE_string("wandb_output_dir", None, "Where to save local wandb files")
 
 flags.DEFINE_integer("max_steps", 1000000, "Maximum number of training steps.")
 flags.DEFINE_integer("replay_buffer_capacity", 1000000, "Replay buffer capacity.")
@@ -60,37 +65,22 @@ flags.DEFINE_integer("checkpoint_period", 0, "Period to save checkpoints.")
 flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
 
 # flags for replay buffer
-flags.DEFINE_string("replay_buffer_type", "replay_buffer", "Which type of replay buffer to use")
+flags.DEFINE_string("replay_buffer_type", "replay_buffer", "Which replay buffer to use")
 flags.DEFINE_string("branch_method", None, "Method for how many branches to generate")
-flags.DEFINE_string("split_method", None, "Method for when to change number of branches generated") # Remember to default None
-flags.DEFINE_float("workspace_width", 0.5, "Workspace width in centimeters") # Remember to default None
-flags.DEFINE_integer("max_depth",None,"max_depth")
-flags.DEFINE_integer("depth", None, "Total layers of depth")
-flags.DEFINE_integer("dendrites", None, "Dendrites for fractal branching")
-flags.DEFINE_integer("timesplit_freq", None, "Frequency of splits according to time")
-flags.DEFINE_integer("branch_count_rate_of_change", None, "Rate of change for linear branching")
-flags.DEFINE_integer("starting_branch_count", 1, "Initial number of branches")
-flags.DEFINE_integer("branching_factor", None, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch and fractal_contraction
-flags.DEFINE_integer("alpha",None,"alpha value")
-
-# Contraction
-flags.DEFINE_integer("start_num",81, "Initial number of branch on the first depth") # For Fractal Cntraction
-
-# Disassociated
-flags.DEFINE_enum("disassociated_type", "octahedron", ["octahedron", "hourglass"], 
+flags.DEFINE_string("split_method", None, "Method for when to change number of branches generated")
+flags.DEFINE_float("workspace_width", 0.5, "Workspace width in meters")
+flags.DEFINE_integer("max_depth",None,"Maximum layers of depth")
+flags.DEFINE_integer("starting_branch_count", None, "Initial number of branches")
+flags.DEFINE_integer("branching_factor", None, "Rate of change of branches per dimension (x,y)") # For fractal_branch and fractal_contraction
+flags.DEFINE_float("alpha",None,"alpha value")
+flags.DEFINE_enum("disassociated_type", None, ["octahedron", "hourglass"], 
                   "Type of disassociated fracal rollout. Octahedron: expand from min to max then contract to min,"
                    + " Hourglass: Contract from max to min then expand to max")
-flags.DEFINE_integer("min_branch_count", 1, "Minimum number of branches for disassociated fractal rollout")
-flags.DEFINE_integer("max_branch_count", 1, "Maximum number of branches for disassociated fractal rollout")
-flags.DEFINE_integer("num_depth_sectors", 1, "Desired number of sectors to divide rollout into for branch count splitting")
-
-# Density Workspace width
-flags.DEFINE_string("workspace_width_method", 'constant', 'Controls workspace width dimensions configurations')
+flags.DEFINE_integer("min_branch_count", None, "Minimum number of branches for disassociated fractal rollout")
+flags.DEFINE_integer("max_branch_count", None, "Maximum number of branches for disassociated fractal rollout")
 
 # Debug
-flags.DEFINE_boolean(
-    "debug", False, "Debug mode."
-)  # debug mode will disable wandb logging
+flags.DEFINE_boolean("debug", False, "Debug mode.")  # debug mode will disable wandb logging
 
 # Logging
 flags.DEFINE_string("log_rlds_path", None, "Path to save RLDS logs.")
@@ -116,7 +106,7 @@ def actor(agent: SACAgent, data_store, env, sampling_rng, demos_handler=None):
     client = TrainerClient(
         "actor_env",
         FLAGS.ip,
-        make_trainer_config(),
+        make_trainer_config(port_number=FLAGS.port_number, broadcast_port=FLAGS.broadcast_port),
         data_store,
         wait_for_server=True,
     )
@@ -222,8 +212,11 @@ def learner(rng, agent: SACAgent, replay_buffer, replay_iterator):
     # set up wandb and logging
     wandb_logger = make_wandb_logger(
         project=FLAGS.exp_name,
+        name=FLAGS.run_name,
         description=FLAGS.exp_name or FLAGS.env,
+        wandb_output_dir=FLAGS.wandb_output_dir,
         debug=FLAGS.debug,
+        offline=FLAGS.wandb_offline,
     )
 
     # To track the step in the training loop
@@ -236,7 +229,7 @@ def learner(rng, agent: SACAgent, replay_buffer, replay_iterator):
         return {}  # not expecting a response
 
     # Create server
-    server = TrainerServer(make_trainer_config(), request_callback=stats_callback)
+    server = TrainerServer(make_trainer_config(port_number=FLAGS.port_number, broadcast_port=FLAGS.broadcast_port), request_callback=stats_callback)
     server.register_data_store("actor_env", replay_buffer)
     server.start(threaded=True)
 
@@ -370,17 +363,11 @@ def main(_):
             x_obs_idx=np.array([0,4]),
             y_obs_idx=np.array([1,5]),
             preload_rlds_path=FLAGS.preload_rlds_path,
-            max_depth = FLAGS.max_depth,
-            alpha = FLAGS.alpha,
-            # Contraction
-            start_num = FLAGS.start_num,
-            # Workspace Width Density
-            workspace_width_method=FLAGS.workspace_width_method,
-            # Disassociated
+            max_depth=FLAGS.max_depth,
+            alpha=FLAGS.alpha,
             disassociated_type=FLAGS.disassociated_type,
             min_branch_count=FLAGS.min_branch_count,
             max_branch_count=FLAGS.max_branch_count,
-            num_depth_sectors=FLAGS.num_depth_sectors
         )
         replay_iterator = replay_buffer.get_iterator(
             sample_args={

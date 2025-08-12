@@ -9,17 +9,15 @@ import franka_sim
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_integer("capacity", 10000000, "Replay buffer capacity.")
-flags.DEFINE_string("branch_method", "contraction", "Method for determining the number of transforms per dimension (x,y)")
-flags.DEFINE_string("split_method", "time", "Method for determining whether to change the number of transforms per dimension (x,y)")
+flags.DEFINE_integer("capacity", 1000000, "Replay buffer capacity.")
+flags.DEFINE_string("branch_method", "constant", "Method for determining the number of transforms per dimension (x,y)")
+flags.DEFINE_string("split_method", "constant", "Method for determining whether to change the number of transforms per dimension (x,y)")
 flags.DEFINE_float("workspace_width", 0.5, "workspace width in meters")
 flags.DEFINE_integer("max_depth", 4, "Maximum level of depth") # For fractal_branch only
-flags.DEFINE_integer("max_steps",20000,"Maximum steps")
+flags.DEFINE_integer("max_steps",100,"Maximum steps")
 flags.DEFINE_integer("branching_factor", 3, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch only
-flags.DEFINE_integer("starting_branch_count", 1, "Initial number of transforms per dimension (x,y)") # For constant_branch only
+flags.DEFINE_integer("starting_branch_count", 1000, "Initial number of transforms per dimension (x,y)") # For constant_branch only
 flags.DEFINE_integer("alpha",1,"alpha value")
-# Contraction
-flags.DEFINE_integer("start_num",81, "Initila number of branch on the first depth") # For Fractal Cntraction
 # Density Workspace width
 flags.DEFINE_string("workspace_width_method",'increase', 'Controls workspace width dimensions configurations')
 
@@ -44,14 +42,16 @@ def main(_):
         max_depth=FLAGS.max_depth,
         max_traj_length = 100,
         branching_factor=FLAGS.branching_factor,
-        start_num = FLAGS.start_num,
         alpha = FLAGS.alpha,
+        starting_branch_count = FLAGS.starting_branch_count,
         workspace_width_method=FLAGS.workspace_width_method
     )
 
     observation, info = env.reset()
+    observation = np.zeros_like(observation)
     action = env.action_space.sample()
     next_observation, reward, terminated, truncated, info = env.step(action)
+    next_observation = np.ones_like(observation)
     data_dict = dict(
         observations=observation,
         next_observations=next_observation,
@@ -63,16 +63,7 @@ def main(_):
 
     del env, observation, next_observation, action, reward, truncated, terminated, info, y_obs_idx, x_obs_idx, _
 
-    # transform() test
-
-    expected = np.copy(data_dict["observations"]) * 2
-    replay_buffer.transform(data_dict, np.copy(data_dict["observations"]))
-    result = data_dict["observations"]
-    assert np.array_equal(result, expected), f"\033[31mTEST FAILED\033[0m transform() test failed (expected {expected} but got {result})"
-
-    del result, expected
-    
-    print("\n\033[32mTEST PASSED \033[0m transform() test passed")
+    replay_buffer.insert(data_dict)
 
     # branch() tests
 

@@ -3,7 +3,7 @@
 # EXAMPLE_DIR=${EXAMPLE_DIR:-"examples/async_sac_state_sim"}
 CONDA_ENV=${CONDA_ENV:-"serl"}
 
-cd $EXAMPLE_DIR
+# cd $EXAMPLE_DIR
 echo "Running from $(pwd)"
 
 # Create a new tmux session
