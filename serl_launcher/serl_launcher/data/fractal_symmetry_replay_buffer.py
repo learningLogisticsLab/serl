@@ -73,7 +73,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         
         # Initialize branch_method
         match self.branch_method:
-
             case "fractal":
                 self._handle_method_arg_("max_depth", "branch_method", self.branch_method, kwargs)
                 self._handle_method_arg_("branching_factor", "branch_method", self.branch_method, kwargs)
@@ -247,9 +246,9 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
     def never_split(self, data_dict: DatasetDict):
         return False
     
-    def insert(self, data_dict_not: DatasetDict):
+    def insert(self, data: DatasetDict):
 
-        data_dict = copy.deepcopy(data_dict_not)
+        data_dict = copy.deepcopy(data)
 
         # Update number of branches if needed
         if self.split(data_dict):
