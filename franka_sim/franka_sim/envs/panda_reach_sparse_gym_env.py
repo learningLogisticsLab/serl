@@ -15,6 +15,7 @@ else:
 
 from franka_sim.controllers import opspace
 from franka_sim.mujoco_gym_env import GymRenderingSpec, MujocoGymEnv
+from gym.envs.registration import register
 
 _HERE = Path(__file__).parent
 _XML_PATH = _HERE / "xmls" / "arena.xml"
@@ -23,7 +24,7 @@ _CARTESIAN_BOUNDS = np.asarray([[0.2, -0.3, 0], [0.6, 0.3, 0.5]])
 _SAMPLING_BOUNDS = np.asarray([[0.25, -0.25], [0.55, 0.25]])
 
 
-class PandaPickCubeGymEnv(MujocoGymEnv):
+class PandaReachSparseCubeGymEnv(MujocoGymEnv):
     metadata = {"render_modes": ["rgb_array", "human"]}
 
     def __init__(
@@ -84,10 +85,6 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
                         "panda/gripper_pos": spaces.Box(
                             -np.inf, np.inf, shape=(1,), dtype=np.float32
                         ),
-                        # "panda/joint_pos": spaces.Box(-np.inf, np.inf, shape=(7,), dtype=np.float32),
-                        # "panda/joint_vel": spaces.Box(-np.inf, np.inf, shape=(7,), dtype=np.float32),
-                        # "panda/joint_torque": specs.Array(shape=(21,), dtype=np.float32),
-                        # "panda/wrist_force": specs.Array(shape=(3,), dtype=np.float32),
                         "block_pos": spaces.Box(
                             -np.inf, np.inf, shape=(3,), dtype=np.float32
                         ),
@@ -132,8 +129,8 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
             )
 
         self.action_space = gym.spaces.Box(
-            low=np.asarray([-1.0, -1.0, -1.0, -1.0]),
-            high=np.asarray([1.0, 1.0, 1.0, 1.0]),
+            low=np.asarray([-1.0, -1.0, -1.0]),
+            high=np.asarray([1.0, 1.0, 1.0]),
             dtype=np.float32,
         )
 
@@ -144,8 +141,8 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
         self._viewer = MujocoRenderer(
             self.model,
             self.data,
-            width=128,
-            height=128,
+            width=960,
+            height=960,
             camera_id=0
         )
         self._viewer.render(self.render_mode)
@@ -170,8 +167,8 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
         mujoco.mj_forward(self._model, self._data)
 
         # Cache the initial block height.
-        self._z_init = self._data.sensor("block_pos").data[2]
-        self._z_success = self._z_init + 0.2
+        # self._z_init = self._data.sensor("block_pos").data[2]
+        # self._z_success = self._z_init + 0.2
 
         obs = self._compute_observation()
         return obs, {}
@@ -191,7 +188,7 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
             truncated: bool,
             info: dict[str, Any]
         """
-        x, y, z, grasp = action
+        x, y, z = action
 
         # Set the mocap position.
         pos = self._data.mocap_pos[0].copy()
@@ -200,10 +197,7 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
         self._data.mocap_pos[0] = npos
 
         # Set gripper grasp.
-        g = self._data.ctrl[self._gripper_ctrl_id] / 255
-        dg = grasp * self._action_scale[1]
-        ng = np.clip(g + dg, 0.0, 1.0)
-        self._data.ctrl[self._gripper_ctrl_id] = ng * 255
+        self._data.ctrl[self._gripper_ctrl_id] = 0  # Fully open position
 
         for _ in range(self._n_substeps):
             tau = opspace(
@@ -250,24 +244,6 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
         )
         obs["state"]["panda/gripper_pos"] = gripper_pos
 
-        # joint_pos = np.stack(
-        #     [self._data.sensor(f"panda/joint{i}_pos").data for i in range(1, 8)],
-        # ).ravel()
-        # obs["panda/joint_pos"] = joint_pos.astype(np.float32)
-
-        # joint_vel = np.stack(
-        #     [self._data.sensor(f"panda/joint{i}_vel").data for i in range(1, 8)],
-        # ).ravel()
-        # obs["panda/joint_vel"] = joint_vel.astype(np.float32)
-
-        # joint_torque = np.stack(
-        # [self._data.sensor(f"panda/joint{i}_torque").data for i in range(1, 8)],
-        # ).ravel()
-        # obs["panda/joint_torque"] = symlog(joint_torque.astype(np.float32))
-
-        # wrist_force = self._data.sensor("panda/wrist_force").data.astype(np.float32)
-        # obs["panda/wrist_force"] = symlog(wrist_force.astype(np.float32))
-
         if self.image_obs:
             obs["images"] = {}
             obs["images"]["front"], obs["images"]["wrist"] = self.render()
@@ -281,20 +257,25 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
         return obs
 
     def _compute_reward(self) -> float:
+        # Get positions
         block_pos = self._data.sensor("block_pos").data
         tcp_pos = self._data.sensor("2f85/pinch_pos").data
+
+        # Calculate distance
         dist = np.linalg.norm(block_pos - tcp_pos)
+
+        # Distance-based reward
         r_close = np.exp(-20 * dist)
-        r_lift = (block_pos[2] - self._z_init) / (self._z_success - self._z_init)
-        r_lift = np.clip(r_lift, 0.0, 1.0)
-        rew = 0.3 * r_close + 0.7 * r_lift
-        return rew
+        r_close = np.clip(r_close, 0.0, 1.0)
+    
+        return (r_close > 0.95)
 
 
 if __name__ == "__main__":
-    env = PandaPickCubeGymEnv(render_mode="human")
+    # Create wrapped environment
+    env = PandaReachSparseCubeGymEnv(render_mode="human")
     env.reset()
-    for i in range(1000):
-        env.step(np.random.uniform(-1, 1, 4))
+    for i in range(5000):
+        env.step(np.random.uniform(-1, 1, 3))
         env.render()
     env.close()
