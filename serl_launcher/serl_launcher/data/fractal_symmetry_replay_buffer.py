@@ -17,8 +17,8 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         y_obs_idx : np.ndarray,
         branch_method: str,
         split_method: str,
-        workspace_width_method: str,
-        kwargs: dict
+        img_keys: list,
+        kwargs: dict,
     ):
         
         # Initialize values
@@ -26,6 +26,8 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         self.current_branch_count = 1
         self.update_max_traj_length = False
         self.workspace_width = workspace_width
+        self.img_keys = img_keys
+        self._img_insert_index_ = 0
             
         # Set the idx value (changes depending on environment/wrapper) of the x and y observations and next_observations
         self.x_obs_idx = x_obs_idx
@@ -37,21 +39,22 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
 
         self.split_method = split_method
         self.branch_method = branch_method
-        self.workspace_width_method = workspace_width_method
 
         self._handle_methods_(kwargs)
 
-        ## Warn about unused kwargs
+        # Warn about unused kwargs
         for k in kwargs.keys():
             print(f"\033[33mWARNING \033[0m argument \"{k}\" not used")
         
-        # TODO
-        #   Create more methods with tests
-        # 
-        # Future considerations:
-        #   when dealing with x and y for transforms, consider two versions:
-        #       radial trees at different angles can have strong fractal symmetry built in but will be more difficult to evenly space lowest level transforms
-        #       grid-based will inherently evenly space lowest transforms, but fractal symmetry will be restricted to 9 branching_factor (original plus 8) in order to conform
+        # Account for images
+        img_buffer_size = (capacity + self.expected_branches - 1) // self.expected_branches + 1
+        self.img_buffer = {}
+        for k in img_keys:
+            temp = np.empty(shape=observation_space.spaces[k].shape, dtype=observation_space.spaces[k].dtype)
+            temp = temp[np.newaxis, :]
+            self.img_buffer[k] = np.repeat(temp, img_buffer_size, axis=0)
+            
+            observation_space.spaces[k] = gym.spaces.Box(low=float('-inf'), high=float('inf'), shape=(1,), dtype=np.int32)
 
         # Init replay buffer class
         super().__init__(
@@ -59,6 +62,10 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             action_space=action_space,
             capacity=capacity,
         )
+
+        for k in img_keys:
+            self.dataset_dict["observations"][k] = self.dataset_dict["observations"][k].flatten()
+            self.dataset_dict["next_observations"][k] = self.dataset_dict["next_observations"][k].flatten()
 
         self.generate_transform_deltas()
 
@@ -80,6 +87,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.branch = self.fractal_branch
                 if not self.split_method:
                     self.split_method = "time"
+                self.expected_branches = self.branching_factor ** self.max_depth
             
             case "contraction":
                 self._handle_method_arg_("max_depth", "branch_method", self.branch_method, kwargs)
@@ -88,6 +96,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.branch = self.fractal_contraction
                 if not self.split_method:
                     self.split_method = "time"
+                self.expected_branches = self.branching_factor ** self.max_depth
             
             case "linear":
                 raise NotImplementedError("linear branch method is not yet implemented")
@@ -114,6 +123,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.branch = self.disassociated_branch
                 if not self.split_method:
                     self.split_method = "time"
+                self.expected_branches = self.max_branch_count
             
             case "constant":
                 self._handle_method_arg_("starting_branch_count", "branch_method", self.branch_method, kwargs)
@@ -121,6 +131,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.branch = self.constant_branch
                 if not self.split_method:
                     self.split_method = "never"
+                self.expected_branches = self.starting_branch_count
             
             case _:
                 raise ValueError("incorrect value passed to branch_method")
@@ -148,7 +159,11 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
     
     def generate_transform_deltas(self):
         
-        obs_size = self.dataset_dict["observations"].shape[1]
+        obs_state = self.dataset_dict["observations"]
+        if self.img_keys:
+            obs_state = self.dataset_dict["observations"]["state"]
+
+        obs_size = len(obs_state[0])
         total_branches = self.current_branch_count ** 2
 
         self.transform_deltas = np.zeros(shape=(total_branches, obs_size), dtype=np.float32)
@@ -245,11 +260,23 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
     
     def never_split(self, data_dict: DatasetDict):
         return False
-    
+
+    def insert_images(self, observation: dict):
+        for k in self.img_keys:
+            self.img_buffer[k][self._img_insert_index_] = observation[k]
+        self._img_insert_index_ += 1
+
     def insert(self, data: DatasetDict):
 
         data_dict = copy.deepcopy(data)
 
+        obs_state = data_dict["observations"]
+        action = data_dict["actions"]
+        n_obs_state = data_dict["observations"]
+        reward = data_dict["rewards"]
+        mask = data_dict["masks"]
+        done = data_dict["dones"]
+        
         # Update number of branches if needed
         if self.split(data_dict):
             temp = self.current_branch_count
@@ -258,33 +285,60 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             if temp != self.current_branch_count:
                 self.generate_transform_deltas()
         
+        # Insert images if needed
+        if self.img_keys:
+            if self.timestep == 0:
+                self.insert_images(data_dict["observations"])
+            self.insert_images(data_dict["next_observations"])
+            obs_state = data_dict["observations"]["state"]
+            n_obs_state = data_dict["next_observations"]["state"]
+            for k in self.img_keys:
+                data_dict["observations"][k] = (self._img_insert_index_ - 2) % len(self.img_buffer[k])
+                data_dict["next_observations"][k] = (self._img_insert_index_ - 1) % len(self.img_buffer[k])
+                
         # Initialize to extreme x and y
         base_diff = -self.workspace_width/2
-        data_dict["observations"][self.x_obs_idx] += base_diff
-        data_dict["observations"][self.y_obs_idx] += base_diff
-        data_dict["next_observations"][self.x_obs_idx] += base_diff
-        data_dict["next_observations"][self.y_obs_idx] += base_diff
+        obs_state[self.x_obs_idx] += base_diff
+        obs_state[self.y_obs_idx] += base_diff
+        n_obs_state[self.x_obs_idx] += base_diff
+        n_obs_state[self.y_obs_idx] += base_diff
 
         # Transform and insert transitions
         num_transforms = self.current_branch_count ** 2
-        obs_batch = np.tile(data_dict["observations"], (num_transforms, 1))
-        next_obs_batch = np.tile(data_dict["next_observations"], (num_transforms, 1))
+        obs_batch = np.tile(obs_state, (num_transforms, 1))
+        next_obs_batch = np.tile(n_obs_state, (num_transforms, 1))
 
         obs_batch += self.transform_deltas
         next_obs_batch += self.transform_deltas
 
-        data_dict["observations"] = obs_batch
-        data_dict["next_observations"] = next_obs_batch
-        data_dict["actions"] = np.tile(data_dict["actions"], (num_transforms, 1))
-        data_dict["rewards"] = np.tile(data_dict["rewards"], num_transforms)
-        data_dict["masks"] = np.tile(data_dict["masks"], num_transforms)
-        data_dict["dones"] = np.tile(data_dict["dones"], num_transforms)
+        obs_state = obs_batch
+        n_obs_state = next_obs_batch
+        action = np.tile(action, (num_transforms, 1))
+        reward = np.tile(reward, num_transforms)
+        mask = np.tile(mask, num_transforms)
+        done = np.tile(done, num_transforms)
+
+        for k in self.img_keys:
+            data_dict["observations"][k] = np.tile(data_dict["observations"][k], num_transforms)
+            data_dict["next_observations"][k] = np.tile(data_dict["next_observations"][k], num_transforms)
+
+        if self.img_keys:
+            data_dict["observations"]["state"] = obs_state
+            data_dict["next_observations"]["state"] = n_obs_state
+        else:
+            data_dict["observations"] = obs_state
+            data_dict["next_observations"] = n_obs_state
+        
+        data_dict["actions"] = action
+        data_dict["rewards"] = reward
+        data_dict["masks"] = mask
+        data_dict["dones"] = done
 
         super().insert(data_dict, batch_size=num_transforms)
 
         # Reset current_depth, timestep, and max_traj_length
         self.timestep += 1
-        if data_dict["dones"][0]:
+        if done[0]:
             self.current_depth = 0
             if self.update_max_traj_length:
                 self.max_traj_length = int(self.timestep * self.alpha + self.max_traj_length * (1 - self.alpha))

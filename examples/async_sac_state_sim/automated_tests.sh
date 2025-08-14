@@ -12,7 +12,7 @@ CRITIC_ACTOR_RATIO=8
 EXP_NAME="SCALING-REPLAY-BUFFER-CAPACITY-WITH-BRANCHES-$ENV"
 REPLAY_BUFFER_TYPE="fractal_symmetry_replay_buffer"
 
-BASE_ARGS="--env $ENV --exp_name $EXP_NAME --wandb_output_dir $WANDB_OUTPUT_DIR --wandb_offline --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS --critic_actor_ratio $CRITIC_ACTOR_RATIO --seed $SEED"
+BASE_ARGS="--env $ENV --exp_name $EXP_NAME --wandb_output_dir $WANDB_OUTPUT_DIR --wandb_offline --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS --seed $SEED"
 ARGS=""
 
 function run_test {
@@ -39,31 +39,37 @@ function run_test {
 
 }
 
-# # BASELINE TESTING
-# for batch_size in 256
+# BASELINE TESTING
+# for CRITIC_ACTOR_RATIO in 8 32
 # do
-#     for replay_buffer_capacity in 1000 2000 1000000
+#     for batch_size in 256 2048
 #     do
-#         ARGS="--run_name baseline-batch-size-$batch_size-capacity-$replay_buffer_capacity --replay_buffer_type replay_buffer --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity"
-#         run_test
-#     done
-# done
-
-# # CONSTANT TESTING
-# for starting_branch_count in 1 2
-# do
-#     for batch_size in 256
-#     do
-#         for workspace_width in 0.5
+#         for replay_buffer_capacity in 1000 1000000
 #         do
-#             for replay_buffer_capacity in $(( starting_branch_count * starting_branch_count * TRAINING_STARTS )) $(( starting_branch_count * starting_branch_count * TRAINING_STARTS * 2 )) $(( starting_branch_count * starting_branch_count * TRAINING_STARTS * 1000 ))
-#             do
-#                 ARGS="--run_name constant-$starting_branch_count^1-workspace_width-$workspace_width-batch-size-$batch_size-capacity-$replay_buffer_capacity --replay_buffer_type $REPLAY_BUFFER_TYPE --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity --workspace_width $workspace_width --branch_method 'constant' --starting_branch_count $starting_branch_count"
-#                 run_test
-#             done
+#             ARGS="--run_name baseline --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type replay_buffer --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity"
+#             run_test
 #         done
 #     done
 # done
+
+# CONSTANT TESTING
+for CRITIC_ACTOR_RATIO in 8 32
+do
+    for starting_branch_count in 3 9 27 81 243
+    do
+        for batch_size in 256 2048
+        do
+            for workspace_width in 0.5
+            do
+                for replay_buffer_capacity in $(( starting_branch_count * starting_branch_count * TRAINING_STARTS )) $(( starting_branch_count * starting_branch_count * TRAINING_STARTS * 1000 ))
+                do
+                    ARGS="--run_name constant-$starting_branch_count^1 --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type $REPLAY_BUFFER_TYPE --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity --workspace_width $workspace_width --branch_method 'constant' --starting_branch_count $starting_branch_count"
+                    run_test
+                done
+            done
+        done
+    done
+done
 
 # # FRACTAL TESTING
 # for batch_size in 256

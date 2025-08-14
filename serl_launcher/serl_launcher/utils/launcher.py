@@ -276,10 +276,10 @@ def make_replay_buffer(
             branch_method=branch_method,
             split_method=split_method,
             workspace_width=workspace_width,
-            workspace_width_method=workspace_width_method,
             x_obs_idx=x_obs_idx,
             y_obs_idx=y_obs_idx,
             rlds_logger=rlds_logger,
+            image_keys=image_keys,
             kwargs=kwargs,
         )
     

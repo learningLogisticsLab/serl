@@ -3,20 +3,22 @@ import numpy as np
 import gym
 from serl_launcher.utils.launcher import make_replay_buffer
 from serl_launcher.data.fractal_symmetry_replay_buffer import FractalSymmetryReplayBuffer
+from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
+from serl_launcher.wrappers.chunking import ChunkingWrapper
 from absl import app, flags
 import franka_sim
 # import pandas as pd
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_integer("capacity", 1000000, "Replay buffer capacity.")
+flags.DEFINE_integer("capacity", 10000, "Replay buffer capacity.")
 flags.DEFINE_string("branch_method", "constant", "Method for determining the number of transforms per dimension (x,y)")
 flags.DEFINE_string("split_method", "constant", "Method for determining whether to change the number of transforms per dimension (x,y)")
 flags.DEFINE_float("workspace_width", 0.5, "workspace width in meters")
 flags.DEFINE_integer("max_depth", 4, "Maximum level of depth") # For fractal_branch only
 flags.DEFINE_integer("max_steps",100,"Maximum steps")
 flags.DEFINE_integer("branching_factor", 3, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch only
-flags.DEFINE_integer("starting_branch_count", 1000, "Initial number of transforms per dimension (x,y)") # For constant_branch only
+flags.DEFINE_integer("starting_branch_count", 10, "Initial number of transforms per dimension (x,y)") # For constant_branch only
 flags.DEFINE_integer("alpha",1,"alpha value")
 # Density Workspace width
 flags.DEFINE_string("workspace_width_method",'increase', 'Controls workspace width dimensions configurations')
@@ -27,8 +29,11 @@ def main(_):
     y_obs_idx = np.array([1, 5])
 
     # Initialize replay buffer
-    env = gym.make("PandaReachCube-v0")
-    env = gym.wrappers.FlattenObservation(env)
+    env = gym.make("PandaPickCubeVision-v0")
+    env = SERLObsWrapper(env)
+    # env = gym.wrappers.FlattenObservation(env)
+
+    image_keys = [key for key in env.observation_space.keys() if key != "state"]
 
     replay_buffer = make_replay_buffer(
         env,
@@ -39,19 +44,19 @@ def main(_):
         workspace_width=FLAGS.workspace_width,
         x_obs_idx=x_obs_idx,
         y_obs_idx= y_obs_idx,
+        image_keys=image_keys,
         max_depth=FLAGS.max_depth,
         max_traj_length = 100,
         branching_factor=FLAGS.branching_factor,
         alpha = FLAGS.alpha,
         starting_branch_count = FLAGS.starting_branch_count,
-        workspace_width_method=FLAGS.workspace_width_method
     )
 
     observation, info = env.reset()
-    observation = np.zeros_like(observation)
+    
     action = env.action_space.sample()
     next_observation, reward, terminated, truncated, info = env.step(action)
-    next_observation = np.ones_like(observation)
+    
     data_dict = dict(
         observations=observation,
         next_observations=next_observation,
