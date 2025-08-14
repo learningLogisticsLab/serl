@@ -11,8 +11,9 @@ RANDOM_STEPS=1000
 CRITIC_ACTOR_RATIO=8
 EXP_NAME="SCALING-REPLAY-BUFFER-CAPACITY-WITH-BRANCHES-$ENV"
 REPLAY_BUFFER_TYPE="fractal_symmetry_replay_buffer"
+OFFLINE=False
 
-BASE_ARGS="--env $ENV --exp_name $EXP_NAME --wandb_output_dir $WANDB_OUTPUT_DIR --wandb_offline --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS --seed $SEED"
+BASE_ARGS="--env $ENV --exp_name $EXP_NAME --wandb_output_dir $WANDB_OUTPUT_DIR --wandb_offline $OFFLINE --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS --seed $SEED"
 ARGS=""
 
 function run_test {
@@ -39,18 +40,18 @@ function run_test {
 
 }
 
-# BASELINE TESTING
-# for CRITIC_ACTOR_RATIO in 8 32
-# do
-#     for batch_size in 256 2048
-#     do
-#         for replay_buffer_capacity in 1000 1000000
-#         do
-#             ARGS="--run_name baseline --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type replay_buffer --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity"
-#             run_test
-#         done
-#     done
-# done
+BASELINE TESTING
+for CRITIC_ACTOR_RATIO in 8 32
+do
+    for batch_size in 256 2048
+    do
+        for replay_buffer_capacity in 1000 1000000
+        do
+            ARGS="--run_name baseline --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type replay_buffer --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity"
+            run_test
+        done
+    done
+done
 
 # CONSTANT TESTING
 for CRITIC_ACTOR_RATIO in 8 32
