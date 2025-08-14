@@ -2,10 +2,6 @@
 
 
 # Create a new tmux session
-if tmux has-session -t serl_session; then
-    tmux kill-server -t serl_session
-fi
-
 tmux new-session -d -s serl_session
 tmux setw -g remain-on-exit on
 
@@ -22,7 +18,7 @@ do
 
 done
 # Attach to the tmux session
-# tmux attach-session -t serl_session
+tmux attach-session -t serl_session
 
 # kill the tmux session by running the following command
 # tmux kill-session -t serl_session
