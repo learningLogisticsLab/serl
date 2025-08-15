@@ -29,11 +29,11 @@ def main(_):
     y_obs_idx = np.array([1, 5])
 
     # Initialize replay buffer
-    env = gym.make("PandaReachCube-v0")
-    # env = SERLObsWrapper(env)
-    env = gym.wrappers.FlattenObservation(env)
+    env = gym.make("PandaPickCubeVision-v0")
+    env = SERLObsWrapper(env)
+    # env = gym.wrappers.FlattenObservation(env)
 
-    # image_keys = [key for key in env.observation_space.keys() if key != "state"]
+    image_keys = [key for key in env.observation_space.keys() if key != "state"]
 
     replay_buffer = make_replay_buffer(
         env,
@@ -44,7 +44,7 @@ def main(_):
         workspace_width=FLAGS.workspace_width,
         x_obs_idx=x_obs_idx,
         y_obs_idx= y_obs_idx,
-        # image_keys=image_keys,
+        image_keys=image_keys,
         max_depth=FLAGS.max_depth,
         max_traj_length = 100,
         branching_factor=FLAGS.branching_factor,
