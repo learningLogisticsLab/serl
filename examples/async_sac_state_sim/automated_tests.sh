@@ -9,7 +9,7 @@ MAX_STEPS=25000
 TRAINING_STARTS=1000
 RANDOM_STEPS=1000
 CRITIC_ACTOR_RATIO=8
-EXP_NAME="BATCH_SIZE-CRITIC_ACTOR_RATIO-TEST-$ENV"
+EXP_NAME="BATCH_SIZE-VS-BRANCHES-WALL-TIME-TEST-$ENV"
 REPLAY_BUFFER_TYPE="fractal_symmetry_replay_buffer"
 
 BASE_ARGS="--env $ENV --exp_name $EXP_NAME --wandb_output_dir $WANDB_OUTPUT_DIR --wandb_offline --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS --seed $SEED"
@@ -30,7 +30,7 @@ function run_test {
     tmux send-keys -t serl_session:$SEED.1 "conda activate $CONDA_ENV && bash automated_tests_helper.sh --actor --max_steps 2000000000 $BASE_ARGS $ARGS" C-m
     tmux send-keys -t serl_session:$SEED.2 "conda activate $CONDA_ENV && bash automated_tests_helper.sh --learner --max_steps $MAX_STEPS $BASE_ARGS $ARGS" C-m "exit" C-m
 
-    # Wait for actor or learner to finish
+    # Wait for learner to finish
     while ! tmux capture-pane -t serl_session:$SEED.2 -p | grep "logout" > /dev/null;
     do 
         sleep 1
@@ -40,11 +40,11 @@ function run_test {
 }
 
 # BASELINE TESTING
-for CRITIC_ACTOR_RATIO in 8 32
+for CRITIC_ACTOR_RATIO in 8 16 32
 do
-    for batch_size in 2048
+    for batch_size in 256 512 1024 2048
     do
-        for replay_buffer_capacity in 1000 1000000
+        for replay_buffer_capacity in 1000000
         do
             ARGS="--run_name baseline --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type replay_buffer --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity"
             run_test
@@ -53,15 +53,15 @@ do
 done
 
 # CONSTANT TESTING
-for CRITIC_ACTOR_RATIO in 8 32
+for CRITIC_ACTOR_RATIO in 8 16 32
 do
-    for starting_branch_count in 3 9 27 81 243
+    for starting_branch_count in 2 8 32
     do
-        for batch_size in 256 2048
+        for batch_size in 256 512 1024 2048
         do
             for workspace_width in 0.5
             do
-                for replay_buffer_capacity in $(( starting_branch_count * starting_branch_count * TRAINING_STARTS )) $(( starting_branch_count * starting_branch_count * TRAINING_STARTS * 1000 ))
+                for replay_buffer_capacity in $(( starting_branch_count * starting_branch_count * 50000 ))
                 do
                     ARGS="--run_name constant-$starting_branch_count^1 --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type $REPLAY_BUFFER_TYPE --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity --workspace_width $workspace_width --branch_method 'constant' --starting_branch_count $starting_branch_count"
                     run_test
