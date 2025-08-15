@@ -13,12 +13,12 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("capacity", 10000, "Replay buffer capacity.")
 flags.DEFINE_string("branch_method", "constant", "Method for determining the number of transforms per dimension (x,y)")
-flags.DEFINE_string("split_method", "constant", "Method for determining whether to change the number of transforms per dimension (x,y)")
+flags.DEFINE_string("split_method", "never", "Method for determining whether to change the number of transforms per dimension (x,y)")
 flags.DEFINE_float("workspace_width", 0.5, "workspace width in meters")
 flags.DEFINE_integer("max_depth", 4, "Maximum level of depth") # For fractal_branch only
 flags.DEFINE_integer("max_steps",100,"Maximum steps")
 flags.DEFINE_integer("branching_factor", 3, "Rate of change of number of transforms per dimension (x,y)") # For fractal_branch only
-flags.DEFINE_integer("starting_branch_count", 10, "Initial number of transforms per dimension (x,y)") # For constant_branch only
+flags.DEFINE_integer("starting_branch_count", 3, "Initial number of transforms per dimension (x,y)") # For constant_branch only
 flags.DEFINE_integer("alpha",1,"alpha value")
 # Density Workspace width
 flags.DEFINE_string("workspace_width_method",'increase', 'Controls workspace width dimensions configurations')
@@ -29,11 +29,11 @@ def main(_):
     y_obs_idx = np.array([1, 5])
 
     # Initialize replay buffer
-    env = gym.make("PandaPickCubeVision-v0")
-    env = SERLObsWrapper(env)
-    # env = gym.wrappers.FlattenObservation(env)
+    env = gym.make("PandaReachCube-v0")
+    # env = SERLObsWrapper(env)
+    env = gym.wrappers.FlattenObservation(env)
 
-    image_keys = [key for key in env.observation_space.keys() if key != "state"]
+    # image_keys = [key for key in env.observation_space.keys() if key != "state"]
 
     replay_buffer = make_replay_buffer(
         env,
@@ -44,7 +44,7 @@ def main(_):
         workspace_width=FLAGS.workspace_width,
         x_obs_idx=x_obs_idx,
         y_obs_idx= y_obs_idx,
-        image_keys=image_keys,
+        # image_keys=image_keys,
         max_depth=FLAGS.max_depth,
         max_traj_length = 100,
         branching_factor=FLAGS.branching_factor,

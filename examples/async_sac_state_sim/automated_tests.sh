@@ -11,9 +11,8 @@ RANDOM_STEPS=1000
 CRITIC_ACTOR_RATIO=8
 EXP_NAME="BATCH_SIZE-CRITIC_ACTOR_RATIO-TEST-$ENV"
 REPLAY_BUFFER_TYPE="fractal_symmetry_replay_buffer"
-OFFLINE=False
 
-BASE_ARGS="--env $ENV --exp_name $EXP_NAME --wandb_output_dir $WANDB_OUTPUT_DIR --wandb_offline $OFFLINE --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS --seed $SEED"
+BASE_ARGS="--env $ENV --exp_name $EXP_NAME --wandb_output_dir $WANDB_OUTPUT_DIR --wandb_offline --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS --seed $SEED"
 ARGS=""
 
 function run_test {
@@ -28,11 +27,11 @@ function run_test {
     echo "Running constant with args: $ARGS"
     tmux respawn-pane -k -t serl_session:$SEED.1
     tmux respawn-pane -k -t serl_session:$SEED.2
-    tmux send-keys -t serl_session:$SEED.1 "conda activate $CONDA_ENV && bash automated_tests_helper.sh --actor --max_steps $((MAX_STEPS * 2)) $BASE_ARGS $ARGS" C-m
+    tmux send-keys -t serl_session:$SEED.1 "conda activate $CONDA_ENV && bash automated_tests_helper.sh --actor --max_steps 2000000000 $BASE_ARGS $ARGS" C-m
     tmux send-keys -t serl_session:$SEED.2 "conda activate $CONDA_ENV && bash automated_tests_helper.sh --learner --max_steps $MAX_STEPS $BASE_ARGS $ARGS" C-m "exit" C-m
 
     # Wait for actor or learner to finish
-    while ! tmux capture-pane -t serl_session:$SEED.2 -p | grep "Pane is dead" > /dev/null || ! tmux capture-pane -t serl_session:$SEED.1 -p | grep "Pane is dead" > /dev/null ! tmux capture-pane -t serl_session:$SEED.2 -p | grep "logout" > /dev/null || ! tmux capture-pane -t serl_session:$SEED.1 -p | grep "logout" > /dev/null; 
+    while ! tmux capture-pane -t serl_session:$SEED.2 -p | grep "logout" > /dev/null;
     do 
         sleep 1
     done
@@ -40,10 +39,10 @@ function run_test {
 
 }
 
-BASELINE TESTING
+# BASELINE TESTING
 for CRITIC_ACTOR_RATIO in 8 32
 do
-    for batch_size in 256 2048
+    for batch_size in 2048
     do
         for replay_buffer_capacity in 1000 1000000
         do

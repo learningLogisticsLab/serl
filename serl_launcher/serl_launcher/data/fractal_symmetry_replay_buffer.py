@@ -270,13 +270,6 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
 
         data_dict = copy.deepcopy(data)
 
-        obs_state = data_dict["observations"]
-        action = data_dict["actions"]
-        n_obs_state = data_dict["observations"]
-        reward = data_dict["rewards"]
-        mask = data_dict["masks"]
-        done = data_dict["dones"]
-        
         # Update number of branches if needed
         if self.split(data_dict):
             temp = self.current_branch_count
@@ -284,62 +277,131 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             # Update transform_deltas if needed
             if temp != self.current_branch_count:
                 self.generate_transform_deltas()
-        
+
         # Insert images if needed
         if self.img_keys:
             if self.timestep == 0:
                 self.insert_images(data_dict["observations"])
             self.insert_images(data_dict["next_observations"])
-            obs_state = data_dict["observations"]["state"]
-            n_obs_state = data_dict["next_observations"]["state"]
             for k in self.img_keys:
                 data_dict["observations"][k] = (self._img_insert_index_ - 2) % len(self.img_buffer[k])
                 data_dict["next_observations"][k] = (self._img_insert_index_ - 1) % len(self.img_buffer[k])
-                
+        
         # Initialize to extreme x and y
         base_diff = -self.workspace_width/2
-        obs_state[self.x_obs_idx] += base_diff
-        obs_state[self.y_obs_idx] += base_diff
-        n_obs_state[self.x_obs_idx] += base_diff
-        n_obs_state[self.y_obs_idx] += base_diff
+        data_dict["observations"][self.x_obs_idx] += base_diff
+        data_dict["observations"][self.y_obs_idx] += base_diff
+        data_dict["next_observations"][self.x_obs_idx] += base_diff
+        data_dict["next_observations"][self.y_obs_idx] += base_diff
 
         # Transform and insert transitions
         num_transforms = self.current_branch_count ** 2
-        obs_batch = np.tile(obs_state, (num_transforms, 1))
-        next_obs_batch = np.tile(n_obs_state, (num_transforms, 1))
+        obs_batch = np.tile(data_dict["observations"], (num_transforms, 1))
+        next_obs_batch = np.tile(data_dict["next_observations"], (num_transforms, 1))
 
         obs_batch += self.transform_deltas
         next_obs_batch += self.transform_deltas
 
-        obs_state = obs_batch
-        n_obs_state = next_obs_batch
-        action = np.tile(action, (num_transforms, 1))
-        reward = np.tile(reward, num_transforms)
-        mask = np.tile(mask, num_transforms)
-        done = np.tile(done, num_transforms)
-
-        for k in self.img_keys:
-            data_dict["observations"][k] = np.tile(data_dict["observations"][k], num_transforms)
-            data_dict["next_observations"][k] = np.tile(data_dict["next_observations"][k], num_transforms)
-
         if self.img_keys:
-            data_dict["observations"]["state"] = obs_state
-            data_dict["next_observations"]["state"] = n_obs_state
+            data_dict["observations"]["state"] = obs_batch
+            data_dict["next_observations"]["state"] = next_obs_batch
+            for k in self.img_keys:
+                data_dict["observations"][k] = np.tile(data_dict["observations"][k], num_transforms)
+                data_dict["next_observations"][k] = np.tile(data_dict["next_observations"][k], num_transforms)
+
         else:
-            data_dict["observations"] = obs_state
-            data_dict["next_observations"] = n_obs_state
+            data_dict["observations"] = obs_batch
+            data_dict["next_observations"] = next_obs_batch
         
-        data_dict["actions"] = action
-        data_dict["rewards"] = reward
-        data_dict["masks"] = mask
-        data_dict["dones"] = done
+        data_dict["actions"] = np.tile(data_dict["actions"], (num_transforms, 1))
+        data_dict["rewards"] = np.tile(data_dict["rewards"], num_transforms)
+        data_dict["masks"] = np.tile(data_dict["masks"], num_transforms)
+        data_dict["dones"] = np.tile(data_dict["dones"], num_transforms)
 
         super().insert(data_dict, batch_size=num_transforms)
 
         # Reset current_depth, timestep, and max_traj_length
         self.timestep += 1
-        if done[0]:
+        if data_dict["dones"][0]:
             self.current_depth = 0
             if self.update_max_traj_length:
                 self.max_traj_length = int(self.timestep * self.alpha + self.max_traj_length * (1 - self.alpha))
             self.timestep = 0
+
+    # def insert(self, data: DatasetDict):
+
+    #     data_dict = copy.deepcopy(data)
+
+    #     obs_state = data_dict["observations"]
+    #     action = data_dict["actions"]
+    #     n_obs_state = data_dict["observations"]
+    #     reward = data_dict["rewards"]
+    #     mask = data_dict["masks"]
+    #     done = data_dict["dones"]
+        
+    #     # Update number of branches if needed
+    #     if self.split(data_dict):
+    #         temp = self.current_branch_count
+    #         self.current_branch_count = self.branch()
+    #         # Update transform_deltas if needed
+    #         if temp != self.current_branch_count:
+    #             self.generate_transform_deltas()
+        
+    #     # Insert images if needed
+    #     if self.img_keys:
+    #         if self.timestep == 0:
+    #             self.insert_images(data_dict["observations"])
+    #         self.insert_images(data_dict["next_observations"])
+    #         obs_state = data_dict["observations"]["state"]
+    #         n_obs_state = data_dict["next_observations"]["state"]
+    #         for k in self.img_keys:
+    #             data_dict["observations"][k] = (self._img_insert_index_ - 2) % len(self.img_buffer[k])
+    #             data_dict["next_observations"][k] = (self._img_insert_index_ - 1) % len(self.img_buffer[k])
+                
+    #     # Initialize to extreme x and y
+    #     base_diff = -self.workspace_width/2
+    #     obs_state[self.x_obs_idx] += base_diff
+    #     obs_state[self.y_obs_idx] += base_diff
+    #     n_obs_state[self.x_obs_idx] += base_diff
+    #     n_obs_state[self.y_obs_idx] += base_diff
+
+    #     # Transform and insert transitions
+    #     num_transforms = self.current_branch_count ** 2
+    #     obs_batch = np.tile(obs_state, (num_transforms, 1))
+    #     next_obs_batch = np.tile(n_obs_state, (num_transforms, 1))
+
+    #     obs_batch += self.transform_deltas
+    #     next_obs_batch += self.transform_deltas
+
+    #     obs_state = obs_batch
+    #     n_obs_state = next_obs_batch
+    #     action = np.tile(action, (num_transforms, 1))
+    #     reward = np.tile(reward, num_transforms)
+    #     mask = np.tile(mask, num_transforms)
+    #     done = np.tile(done, num_transforms)
+
+    #     for k in self.img_keys:
+    #         data_dict["observations"][k] = np.tile(data_dict["observations"][k], num_transforms)
+    #         data_dict["next_observations"][k] = np.tile(data_dict["next_observations"][k], num_transforms)
+
+    #     if self.img_keys:
+    #         data_dict["observations"]["state"] = obs_state
+    #         data_dict["next_observations"]["state"] = n_obs_state
+    #     else:
+    #         data_dict["observations"] = obs_state
+    #         data_dict["next_observations"] = n_obs_state
+        
+    #     data_dict["actions"] = action
+    #     data_dict["rewards"] = reward
+    #     data_dict["masks"] = mask
+    #     data_dict["dones"] = done
+
+    #     super().insert(data_dict, batch_size=num_transforms)
+
+    #     # Reset current_depth, timestep, and max_traj_length
+    #     self.timestep += 1
+    #     if done[0]:
+    #         self.current_depth = 0
+    #         if self.update_max_traj_length:
+    #             self.max_traj_length = int(self.timestep * self.alpha + self.max_traj_length * (1 - self.alpha))
+    #         self.timestep = 0
