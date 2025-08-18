@@ -25,10 +25,12 @@ from serl_launcher.utils.timer_utils import Timer
 from serl_launcher.utils.train_utils import concat_batches
 
 from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
+from serl_launcher.wrappers.chunking import ChunkingWrapper
 
 import franka_sim
 
 flags.DEFINE_string("env", "PandaPickCubeVision-v0", "Name of environment.")
+
 flags.DEFINE_string("agent", "drq", "Name of agent.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
 flags.DEFINE_integer("max_traj_length", 1000, "Maximum length of trajectory.")
@@ -50,7 +52,6 @@ flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 flags.DEFINE_integer('num_episodes', 10, 'Number of episodes to log.')
 flags.DEFINE_string('output_dir', 'datasets/',
                     'Path in a filesystem to record trajectories.')
-flags.DEFINE_string('env_name', 'CartPole-v1', 'Name of the environment.')
 flags.DEFINE_boolean('enable_envlogger', False, 'Enable envlogger.')
 
 FLAGS = flags.FLAGS
@@ -73,12 +74,21 @@ robot = 'franka'    # Robot type used in the environment, can be 'franka' or 'fe
 task  = 'reach'     # Task type used in the environment, can be 'reach' or 'pick-and-place'
 
 # Debug mode for rendering and visualization
-DEBUG = False
+DEBUG = True
 
 if DEBUG:
     _render_mode = 'human'  # Render mode for the environment, can be 'human' or 'rgb_array'
 else:
     _render_mode = 'rgb_array'  # Use 'rgb_array' for automated testing without GUI
+
+# Indices for franka_sim reach environment observations
+if robot == 'franka' and task == 'reach':
+
+    opi = np.array([0, 3])  # Indices for object position in observation
+    gpi = np.array([3])     # Indices for gripper position in observation
+    rpi = np.array([4, 7])   # Indices for robot position in observation
+    rvi = np.array([7, 10])   # Indices for robot velocity in observation
+
 
 ##############################################################################
 def set_front_cam_view(env):
@@ -124,7 +134,7 @@ def compute_error(object_pos, current_pos, prev_error, dt):
     return error, derror
 
 
-def demo(env, lastObs):
+def demo(env, lastObs, prev_error, prev_time):
     """
     Executes a scripted reach sequence using a hierarchical approach.
     
@@ -152,28 +162,7 @@ def demo(env, lastObs):
     object_pos       = np.zeros(3, dtype=np.float32)
     current_pos      = np.zeros(3, dtype=np.float32)
     gripper_pos      = np.zeros(1, dtype=np.float32)
-    object_rel_pos   = np.zeros(3, dtype=np.float32)
-
-
-    # Initialize (single) episode data collection
-    # episodeObs  = []        # Observations for this episode  
-    # episodeAcs  = []        # Actions for this episode
-    # episodeRews = []        # Rewards for this episode
-    # episodeInfo = []        # Info for this episode
-    # episodeTerminated = []  # Terminated flags for this episode
-    # episodeTruncated = []   # Truncated flags for this episode
-    # episodeDones = []       # Done flags (terminated or truncated) for this episode
-    
-    # Dictionary to store episode data
-    # episode_data = {
-    #     "observations": episodeObs,
-    #     "actions": episodeAcs,
-    #     "rewards": episodeRews,
-    #     "infos": episodeInfo,
-    #     "terminateds": episodeTerminated,
-    #     "truncateds": episodeTruncated,
-    #     "dones": episodeDones
-    # }   
+    object_rel_pos   = np.zeros(3, dtype=np.float32)   
 
     # close gripper
     fgr_pos = 0
@@ -193,29 +182,30 @@ def demo(env, lastObs):
     prev_error = np.zeros_like(object_pos)
     error, derror = compute_error(object_pos, current_pos, prev_error, dt)    
 
-    time_step = 0  # Track total time_steps in episode
-    episodeObs.append(lastObs) # Store initial observation
-
-    # Initialize previous time for dt calculation
-    prev_time = perf_counter()  # Start time for dt calculation
-    
+    # time_step = 0  # Track total time_steps in episode
+    # episodeObs.append(lastObs) # Store initial observation
+   
     # Phase 1: Reach
     # Terminate when distance to above-object position < error_threshold
-    print(f"----------------------------------------------- Phase 1: Reach -----------------------------------------------")
-    while np.linalg.norm(error) >= error_threshold and time_step <= env.spec.max_episode_steps:
-        env.render()  # Visual feedback
+    # print(f"----------------------------------------------- Phase 1: Reach -----------------------------------------------")
+    while np.linalg.norm(error) >= error_threshold:
+        # env.render()  # Visual feedback
         
         # Record current time and compute dt
         curr_time = perf_counter()
         dt = curr_time - prev_time
-        prev_time = curr_time
 
         # Initialize action vector [x, y, z]
         action = np.array([0., 0., 0.])
+
+        # Update error for next iteration
+        error, derror = compute_error(object_pos, current_pos, prev_error, dt)
+
         
         # Proportional control with gain of 6
         action[:3] = error * Kp + derror * Kv
         prev_error = error.copy()  # Update previous error for next iteration
+    
         
         # Clip action to prevent excessive movements
         action = np.clip(action/ACTION_MAX, -0.1, 0.1)  #
@@ -231,13 +221,11 @@ def demo(env, lastObs):
         #store_transition_data(episode_data, new_obs, reward, action, info, terminated, truncated, done)
 
         # Update and print state information
-        object_pos,gripper_pos,cur_pos,cur_vel = update_state_info(episode_data, time_step, dt, error,reward)
+        # object_pos,gripper_pos,cur_pos,cur_vel = update_state_info(episode_data, time_step, dt, error,reward)
 
-        # Update error for next iteration
-        # error, derror = compute_error(object_pos, cur_pos, prev_error, dt)
 
        # Update time step
-        time_step += 1
+        # time_step += 1
 
         # Sleep
         #if DEBUG:
@@ -248,7 +236,7 @@ def demo(env, lastObs):
     #     deactivate_weld(env, constraint_name="grasp_weld")
 
     # Break out of the loop to start a new episode
-    return action
+    return action, prev_error, curr_time
         
     # # If we reach here, the episode was not successful
     # if weld_flag:
@@ -259,21 +247,21 @@ def demo(env, lastObs):
 def main(unused_argv):
     logging.info(f'Creating gym environment...')
 
-    env = gym.make(FLAGS.env_name)
+    env = gym.make(FLAGS.env, render_mode=_render_mode)
 
     if FLAGS.env == "PandaPickCube-v0":
         env = gym.wrappers.FlattenObservation(env)
     if FLAGS.env == "PandaPickCubeVision-v0":
         env = SERLObsWrapper(env)
-        #env = ChunkingWrapper(env, obs_horizon=1, act_exec_horizon=None)
+        env = ChunkingWrapper(env, obs_horizon=1, act_exec_horizon=None)
 
-    logging.info(f'Done creating {FLAGS.env_name} environment.')
+    logging.info(f'Done creating {FLAGS.env} environment.')
 
 
     if FLAGS.enable_envlogger:
         env = AutoOXEEnvLogger(
             env=env,
-            dataset_name=FLAGS.env_name,
+            dataset_name=FLAGS.env,
             directory=FLAGS.output_dir,
         )
 
@@ -289,12 +277,17 @@ def main(unused_argv):
             env.set_step_metadata({"timestamp": time.time()})
 
         logging.info('episode %r', i)
-        env.reset()
+        
+        # Start a new episode
+        obs,_ = env.reset()
         terminated = False
         truncated = False
+        curr_time = perf_counter()
 
         while not (terminated or truncated):
-            action = env.action_space.sample()
+            
+            # Get action from the demo function
+            action,prev_error,curr_time = demo(env,obs,prev_error, curr_time)
 
             # example to log custom step metadata
             if FLAGS.enable_envlogger:
