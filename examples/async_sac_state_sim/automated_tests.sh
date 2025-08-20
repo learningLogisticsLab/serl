@@ -5,11 +5,11 @@ WANDB_OUTPUT_DIR=~/wandb_logs
 TEST="async_sac_state_sim.py"
 CONDA_ENV="serl"
 ENV="PandaReachCube-v0"
-MAX_STEPS=15000
+MAX_STEPS=25000
 TRAINING_STARTS=1000
 RANDOM_STEPS=1000
 CRITIC_ACTOR_RATIO=8
-EXP_NAME="27^1-OLD-VERSION-$ENV"
+EXP_NAME="GENERAL-RETESTING-$ENV"
 REPLAY_BUFFER_TYPE="fractal_symmetry_replay_buffer"
 
 BASE_ARGS="--env $ENV --exp_name $EXP_NAME --wandb_output_dir $WANDB_OUTPUT_DIR --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS"
@@ -17,14 +17,14 @@ ARGS=""
 
 function run_test {
 
-    for seed in {1..$SEEDS}
+    for seed in $(seq 1 1 $SEEDS)
     do
-        OPEN_PORTS=$( comm -23 <(seq 49152 65535 | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n 2 )
-        PORTS=( $OPEN_PORTS )
-        PORT_NUMBER=${PORTS[0]}
-        BROADCAST_PORT=${PORTS[1]}
+        # OPEN_PORTS=$( comm -23 <(seq 49152 65535 | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n 2 )
+        # PORTS=( $OPEN_PORTS )
+        # PORT_NUMBER=${PORTS[0]}
+        # BROADCAST_PORT=${PORTS[1]}
 
-        ARGS+=" --port_number $PORT_NUMBER --broadcast_port $BROADCAST_PORT"
+        # ARGS+=" --port_number $PORT_NUMBER --broadcast_port $BROADCAST_PORT"
 
         echo "Running constant with args: $ARGS"
         tmux respawn-pane -k -t serl_session:0.1
@@ -41,35 +41,32 @@ function run_test {
     done
 }
 
-# # BASELINE TESTING
-# for CRITIC_ACTOR_RATIO in 8 16 32
-# do
-#     for batch_size in 256 512 1024 2048
-#     do
-#         for replay_buffer_capacity in 1000000
-#         do
-#             ARGS="--run_name baseline --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type replay_buffer --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity"
-#             run_test
-#         done
-#     done
-# done
+# BASELINE TESTING
+for CRITIC_ACTOR_RATIO in 8
+do
+    for batch_size in 256 2048
+    do
+        for replay_buffer_capacity in 1000 1000000
+        do
+            ARGS="--run_name baseline --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type replay_buffer --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity"
+            run_test
+        done
+    done
+done
 
 # CONSTANT TESTING
-for steps_per_update in 1 30 100
+for CRITIC_ACTOR_RATIO in 8
 do
-    for CRITIC_ACTOR_RATIO in 8
+    for starting_branch_count in 2 8 64
     do
-        for starting_branch_count in 27
+        for batch_size in 256
         do
-            for batch_size in 256
+            for workspace_width in 10 1 .1
             do
-                for workspace_width in 0.5
+                for replay_buffer_capacity in $((1000 * $starting_branch_count * $starting_branch_count)) $((1000000 * $starting_branch_count * $starting_branch_count))
                 do
-                    for replay_buffer_capacity in 1000000
-                    do
-                        ARGS="--run_name constant-$starting_branch_count^1 --steps_per_update $steps_per_update --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type $REPLAY_BUFFER_TYPE --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity --workspace_width $workspace_width --branch_method 'constant' --starting_branch_count $starting_branch_count"
-                        run_test
-                    done
+                    ARGS="--run_name constant-$starting_branch_count^1 --steps_per_update $steps_per_update --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type $REPLAY_BUFFER_TYPE --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity --workspace_width $workspace_width --branch_method 'constant' --starting_branch_count $starting_branch_count"
+                    run_test
                 done
             done
         done
