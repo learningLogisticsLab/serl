@@ -32,7 +32,7 @@ flags.DEFINE_string("env", "PandaPickCubeVision-v0", "Name of environment.")
 
 #flags.DEFINE_string("agent", "drq", "Name of agent.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
-flags.DEFINE_integer("max_traj_length", 100, "Maximum length of trajectory.")
+flags.DEFINE_integer("max_traj_length", 200, "Maximum length of trajectory.")
 flags.DEFINE_integer("seed", 42, "Random seed.")
 
 # flag to indicate if this is a leaner or a actor
@@ -48,7 +48,7 @@ flags.DEFINE_string("log_rlds_path", "/data/data/serl/demos/franka_reach_drq_dem
 flags.DEFINE_string("output_dir", "/data/data/serl/demos/franka_reach_drq_demo_script",
                     "Directory to save the output data. This is where the RLDS logs will be saved.")
                      
-flags.DEFINE_integer("num_demos", 10, "Number of episodes to log.")
+flags.DEFINE_integer("num_demos", 2, "Number of episodes to log.")
 
 flags.DEFINE_boolean("enable_envlogger", True, "Enable envlogger.")
 
@@ -60,6 +60,8 @@ FLAGS = flags.FLAGS
 #-------------------------------------------------------------------------------------------
 ## Telop Config Variables
 #-------------------------------------------------------------------------------------------
+ACTION_MAX = 10 # Maximum action value for clipping actions
+
 # Bind, xyz, gripper vals to keys
 moveBindings = {
     'i':(1,0,0,0),
@@ -167,14 +169,17 @@ def get_kb_demo_action(speed=0.1):
 
         elif key == 'k':
             # 'k' means stop → zero vector
-            action = np.zeros(3, dtype=float)
+            action = np.zeros(4, dtype=float)
 
         elif key == '\x03':  # CTRL-C
             raise KeyboardInterrupt
-
+        
     finally:
         # Restore terminal even if something goes wrong
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+
+    # Clip action values to prevent excessive commands
+    action = np.clip(action, -ACTION_MAX, ACTION_MAX)
 
     return action
 
@@ -232,10 +237,13 @@ def main(unused_argv):
         logging.info('episode %r', i)
         
         # Start a new episode
-        obs = env.reset()[0]
+        env.reset()
         terminated = False
         truncated = False
 
+        step = 0
+
+        # Termination occurs when the hand reaches the target or the maximum trajectory length is reached
         while not (terminated or truncated):
             
             # Get action from the demo function
@@ -254,9 +262,13 @@ def main(unused_argv):
                 obs, reward, terminated, info = return_step
                 truncated = False
 
-    logging.info(
-        'Done training a random agent for %r episodes.', FLAGS.num_episodes)
+            print(f" step: {step}", f"reward: {reward:.3f}\n")
+            step += 1
 
+    logging.info(
+        'Done training a random agent for %r episodes.', FLAGS.num_demos)
+    
+    #env.close() # it seems async_drq_sim does not use close() dm_env method error.
 
 if __name__ == '__main__':
     app.run(main)
