@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import time
-from time import sleep, perf_counter
-from datetime import datetime
+# from time import perf_counter
+
 import numpy as np
 from absl import app, flags, logging
 
@@ -14,82 +14,63 @@ from absl import app, flags
 
 import os
 
-from typing import Any, Dict, Optional
 import pickle as pkl
 import gym
-from gym.wrappers.record_episode_statistics import RecordEpisodeStatistics
-
-from serl_launcher.agents.continuous.drq import DrQAgent
-from serl_launcher.common.evaluation import evaluate
-from serl_launcher.utils.timer_utils import Timer
-from serl_launcher.utils.train_utils import concat_batches
 
 from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
 from serl_launcher.wrappers.chunking import ChunkingWrapper
 
 import franka_sim
 
+# Teleoperation imports
+import sys, select, termios, tty
+
+#-------------------------------------------------------------------------------------------
+# Flags
+#-------------------------------------------------------------------------------------------
 flags.DEFINE_string("env", "PandaPickCubeVision-v0", "Name of environment.")
 
-flags.DEFINE_string("agent", "drq", "Name of agent.")
+#flags.DEFINE_string("agent", "drq", "Name of agent.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
-flags.DEFINE_integer("max_traj_length", 1000, "Maximum length of trajectory.")
+flags.DEFINE_integer("max_traj_length", 100, "Maximum length of trajectory.")
 flags.DEFINE_integer("seed", 42, "Random seed.")
 
 # flag to indicate if this is a leaner or a actor
-flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
+#flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
 # "small" is a 4 layer convnet, "resnet" and "mobilenet" are frozen with pretrained weights
 flags.DEFINE_string("encoder_type", "resnet-pretrained", "Encoder type.")
-flags.DEFINE_string("demo_path", None, "Path to the demo data.")
+#flags.DEFINE_string("demo_path", None, "Path to the demo data.")
 
-flags.DEFINE_boolean(
-    "debug", False, "Debug mode."
-)  # debug mode will disable wandb logging
+flags.DEFINE_boolean("debug", True, "Debug mode.")  # debug mode will disable wandb logging
 
-flags.DEFINE_string("log_rlds_path", None, "Path to save RLDS logs.")
-flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
+flags.DEFINE_string("log_rlds_path", "/data/data/serl/demos/franka_reach_drq_demo_script", "Path to save RLDS logs.")
+#flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
+flags.DEFINE_string("output_dir", "/data/data/serl/demos/franka_reach_drq_demo_script",
+                    "Directory to save the output data. This is where the RLDS logs will be saved.")
+                     
+flags.DEFINE_integer("num_demos", 10, "Number of episodes to log.")
 
-flags.DEFINE_integer('num_episodes', 10, 'Number of episodes to log.')
-flags.DEFINE_string('output_dir', 'datasets/',
-                    'Path in a filesystem to record trajectories.')
-flags.DEFINE_boolean('enable_envlogger', False, 'Enable envlogger.')
+flags.DEFINE_boolean("enable_envlogger", True, "Enable envlogger.")
+
+# Keyboard teleoperation
+flags.DEFINE_string("teleop_mode", "keyboard", "Teleoperation mode: 'keyboard' or 'spacemouse'.")
 
 FLAGS = flags.FLAGS
 
 #-------------------------------------------------------------------------------------------
-## Key Config Variables
+## Telop Config Variables
 #-------------------------------------------------------------------------------------------
-# Proportional and derivative control gain for action scaling -- empirically tuned
-Kp = 10.0      # Values between 20 and 24 seem to be somewhat stable for Kv = 24
-Kv = 10.0 
-
-ACTION_MAX = 10 # Maximum action value for clipping actions
-ERROR_THRESHOLD = 0.008 # Note!! When this number is changed, the way rewards are computed in the PandaReachCubeEnv.step() L220 must also be changed such that done=True only at the end of a successfull run.
-
-# Number of demonstration episodes to generate
-NUM_DEMOS = 20
-
-# Robot configuration
-robot = 'franka'    # Robot type used in the environment, can be 'franka' or 'fetch'
-task  = 'reach'     # Task type used in the environment, can be 'reach' or 'pick-and-place'
-
-# Debug mode for rendering and visualization
-DEBUG = True
-
-if DEBUG:
-    _render_mode = 'human'  # Render mode for the environment, can be 'human' or 'rgb_array'
-else:
-    _render_mode = 'rgb_array'  # Use 'rgb_array' for automated testing without GUI
-
-# Indices for franka_sim reach environment observations
-if robot == 'franka' and task == 'reach':
-
-    opi = np.array([0, 3])  # Indices for object position in observation
-    gpi = np.array([3])     # Indices for gripper position in observation
-    rpi = np.array([4, 7])   # Indices for robot position in observation
-    rvi = np.array([7, 10])   # Indices for robot velocity in observation
-
-
+# Bind, xyz, gripper vals to keys
+moveBindings = {
+    'i':(1,0,0,0),
+    ',':(-1,0,0,0),
+    'j':(0,1,0,0),
+    'l':(0,-1,0,0),
+    'u':(0,0,0,1),
+    'o':(0,0,0,-1),
+    'm':(0,0,1,0),
+    '.':(0,0,-1,0),
+        }
 ##############################################################################
 def set_front_cam_view(env):
     """
@@ -106,7 +87,7 @@ def set_front_cam_view(env):
     if hasattr(viewer, 'cam'):
         viewer.cam.lookat[:] = [0, 0, 0.1]   # Center of robot (adjust as needed)
         viewer.cam.distance = 3.0            # Camera distance
-        viewer.cam.azimuth = 135             # 0 = right, 90 = front, 180 = left
+        viewer.cam.azimuth = 155             # 0 = right, 90 = front, 180 = left
         viewer.cam.elevation = -30           # Negative = above, positive = below
 
         # Hide menu
@@ -114,150 +95,120 @@ def set_front_cam_view(env):
     
     return viewer
 
-##############################################################################
-def compute_error(object_pos, current_pos, prev_error, dt):
-    """Compute the error and its derivative between the object position and the current end-effector position.
-    Args:
-        object_pos (np.ndarray): The position of the object in the environment.
-        current_pos (np.ndarray): The current position of the end-effector.
-        prev_error (np.ndarray): The previous error value for derivative calculation.
-        dt (float): Time step for derivative calculation.
-        
-    Returns:
-        error (np.ndarray): The current error vector between the object and end-effector positions.
-        derror (np.ndarray): The derivative of the error vector.
+def getKey(settings):
     """
-    error = object_pos - current_pos  # Calculate the error vector
-    derror = (error - prev_error) / dt  # Calculate the derivative of the error vector 
+    Waits briefly for a keypress and returns the pressed key.
 
-    prev_error = error.copy()  # Update previous error for next iteration
-    return error, derror
+    Parameters
+    ----------
+    settings : list
+        Original terminal settings so they can be restored after reading.
 
-
-def demo(env, lastObs, prev_error, prev_time):
+    Returns
+    -------
+    key : str
+        The key pressed by the user, or '' (empty string) if no key was pressed.
     """
-    Executes a scripted reach sequence using a hierarchical approach.
-    
-    Implements 1-phase control strategy:
-    1. Approach: Move gripper above object (3cm offset)
+    # Put terminal into raw mode so keypress is captured instantly
+    tty.setraw(sys.stdin.fileno())
 
-    Store observations, actions, and info in global lists for later replay buffer inclusion.
+    # Wait for human to input action, we will not provide a timeout so it is blocking.
+    rlist, _, _ = select.select([sys.stdin], [], []) # select.select(rlist, wlist, xlist[, timeout])
 
-    Gripper:
-    - The gripper in Mujoco ranges from a value of 0 to 0.4, where 0 is fully open and 0.4 is fully closed.
-    
-    Args:
-        env: Gymnasium environment instance
-        lastObs: Flattened observations set as object_pos, gripper_pos, panda/tcp_pos, panda/tcp_vel
-            - observations:
-                object_pos[0:3],
-                gripper_pos[3]
-                panda/tcp_pos[4:7],
-                panda/tcp_vel[7:10]
+    if rlist:
+        # Read exactly one character if a key is pressed
+        key = sys.stdin.read(1)
+    else:
+        key = ''
 
-    Returns:
+    # Restore terminal to original settings
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+    return key
+
+def get_kb_demo_action(speed=0.1):
     """
+    Reads keyboard input and maps it to a 3D action vector for robot control.
 
-    ## Init goal, current_pos, and object position from last observation
-    object_pos       = np.zeros(3, dtype=np.float32)
-    current_pos      = np.zeros(3, dtype=np.float32)
-    gripper_pos      = np.zeros(1, dtype=np.float32)
-    object_rel_pos   = np.zeros(3, dtype=np.float32)   
+    The function uses non-blocking keyboard input to allow interactive
+    teleoperation. Keys are mapped to directions in Cartesian space:
+      - 'i' : +x (forward)
+      - ',' : -x (backward)
+      - 'j' : +y (left)
+      - 'l' : -y (right)
+      - 'm' : +z (up)
+      - '.' : -z (down)
+      - 'k' : stop (zero vector)
 
-    # close gripper
-    fgr_pos = 0
+    Parameters
+    ----------
+    speed : float, optional
+        Step size for each key press (default 0.2).
 
-    # Error thresholds
-    error_threshold = ERROR_THRESHOLD  # Threshold for stopping condition (Xmm)
+    Returns
+    -------
+    np.ndarray
+        Action vector of shape (3,), where each entry corresponds to
+        [x, y, z] translation command. Example: [0.2, 0.0, 0.0].
+    """
+    # Save current terminal settings so we can restore later
+    settings = termios.tcgetattr(sys.stdin)
 
-    finger_delta_fast = 0.05    # Action delta for fingers 5cm per step (will get clipped by controller)... more of a scalar. 
-    finger_delta_slow = 0.005   # Franka has a range from 0 to 4cm per finger
+    # Initialize action as a zero vector (no movement)
+    action = np.zeros(4, dtype=float)
 
-    ## Extract data   
-    object_pos = lastObs[opi[0]:opi[1]]  # block pos
-    current_pos = lastObs[rpi[0]:rpi[1]] # panda/tcp_pos
+    try:
+        # Capture the pressed key 
+        key = getKey(settings)
 
-    # Relative position between end-effector and object
-    dt = env.unwrapped.model.opt.timestep  # Mujoco time step
-    prev_error = np.zeros_like(object_pos)
-    error, derror = compute_error(object_pos, current_pos, prev_error, dt)    
+        if key in moveBindings:
+            # Lookup (x, y, z) direction and scale by speed
+            dx, dy, dz, g= moveBindings[key]
+            action = np.array([dx, dy, dz, g], dtype=float) * speed
 
-    # time_step = 0  # Track total time_steps in episode
-    # episodeObs.append(lastObs) # Store initial observation
-   
-    # Phase 1: Reach
-    # Terminate when distance to above-object position < error_threshold
-    # print(f"----------------------------------------------- Phase 1: Reach -----------------------------------------------")
-    while np.linalg.norm(error) >= error_threshold:
-        # env.render()  # Visual feedback
-        
-        # Record current time and compute dt
-        curr_time = perf_counter()
-        dt = curr_time - prev_time
+        elif key == 'k':
+            # 'k' means stop → zero vector
+            action = np.zeros(3, dtype=float)
 
-        # Initialize action vector [x, y, z]
-        action = np.array([0., 0., 0.])
+        elif key == '\x03':  # CTRL-C
+            raise KeyboardInterrupt
 
-        # Update error for next iteration
-        error, derror = compute_error(object_pos, current_pos, prev_error, dt)
+    finally:
+        # Restore terminal even if something goes wrong
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
 
-        
-        # Proportional control with gain of 6
-        action[:3] = error * Kp + derror * Kv
-        prev_error = error.copy()  # Update previous error for next iteration
-    
-        
-        # Clip action to prevent excessive movements
-        action = np.clip(action/ACTION_MAX, -0.1, 0.1)  #
+    return action
 
-        # Keep gripper closed -- no need. only 3 dimensions of control
-        #action[ len(action)-1 ] = -finger_delta_fast # Maintain gripper closed.
-        
-        # Unpack new Gymnasium step API
-        # new_obs, reward, terminated, truncated, info = env.step(action)
-        # done = terminated or truncated
-        
-        # Store episode data
-        #store_transition_data(episode_data, new_obs, reward, action, info, terminated, truncated, done)
-
-        # Update and print state information
-        # object_pos,gripper_pos,cur_pos,cur_vel = update_state_info(episode_data, time_step, dt, error,reward)
-
-
-       # Update time step
-        # time_step += 1
-
-        # Sleep
-        #if DEBUG:
-        sleep(0.25)  # Activated when DEBUG is True for better visualization.        
-
-    # Deactivate weld constraint after successful pick -- franka_sim env does not have weld like franka_mujoco env.
-    # if weld_flag:
-    #     deactivate_weld(env, constraint_name="grasp_weld")
-
-    # Break out of the loop to start a new episode
-    return action, prev_error, curr_time
-        
-    # # If we reach here, the episode was not successful
-    # if weld_flag:
-    #     print("Failed to transport object to goal position. Deactivating weld.")
-    #     deactivate_weld(env, constraint_name="grasp_weld")
-    
 ##############################################################################
 def main(unused_argv):
     logging.info(f'Creating gym environment...')
 
+    # Render mode configuration based on debug flag
+    if FLAGS.debug:
+        _render_mode = 'human'  # Render mode for the environment, can be 'human' or 'rgb_array'
+    else:
+        _render_mode = 'rgb_array'  # Use 'rgb_array' for automated testing without GUI
+
+    # Create the environment with the specified render mode and wrappers
     env = gym.make(FLAGS.env, render_mode=_render_mode)
 
     if FLAGS.env == "PandaPickCube-v0":
         env = gym.wrappers.FlattenObservation(env)
+
     if FLAGS.env == "PandaPickCubeVision-v0":
         env = SERLObsWrapper(env)
         env = ChunkingWrapper(env, obs_horizon=1, act_exec_horizon=None)
 
     logging.info(f'Done creating {FLAGS.env} environment.')
 
+    # Set the camera view to a front-facing perspective
+    if hasattr(env.unwrapped, '_viewer'):
+        viewer = set_front_cam_view(env)
+        if viewer:
+            logging.info('Camera view set to front-facing perspective.')
+        else:
+            logging.warning('Failed to set camera view. Viewer not available.')
 
+    # If envlogger is enabled, wrap the environment with AutoOXEEnvLogger to log episodes
     if FLAGS.enable_envlogger:
         env = AutoOXEEnvLogger(
             env=env,
@@ -265,11 +216,13 @@ def main(unused_argv):
             directory=FLAGS.output_dir,
         )
 
-    logging.info('Training an agent for %r episodes...', FLAGS.num_episodes)
+    logging.info('Training an agent for %r episodes...', FLAGS.num_demos)
 
-    for i in range(FLAGS.num_episodes):
+    #--- LOOP DEMOS/EPISODES ---
+    # Loop through the number of demos specified by the user to record demonstrations
+    for i in range(FLAGS.num_demos):
 
-        # example to log custom metadata during new episode
+        # Log custom metadata during new episode: language embeddings randomly.
         if FLAGS.enable_envlogger:
             env.set_episode_metadata({
                 "language_embedding": np.random.random((5,)).astype(np.float32)
@@ -279,15 +232,14 @@ def main(unused_argv):
         logging.info('episode %r', i)
         
         # Start a new episode
-        obs,_ = env.reset()
+        obs = env.reset()[0]
         terminated = False
         truncated = False
-        curr_time = perf_counter()
 
         while not (terminated or truncated):
             
             # Get action from the demo function
-            action,prev_error,curr_time = demo(env,obs,prev_error, curr_time)
+            action = get_kb_demo_action()
 
             # example to log custom step metadata
             if FLAGS.enable_envlogger:
