@@ -1,25 +1,21 @@
 #!/usr/bin/env python3
-
+import os
 import time
-# from time import perf_counter
+from datetime import datetime
 
 import numpy as np
-from absl import app, flags, logging
 
-import gym
+# Logging
+from absl import app, flags, logging
 from oxe_envlogger.envlogger import AutoOXEEnvLogger
 
-import numpy as np
-from absl import app, flags
-
-import os
-
-import pickle as pkl
+# DRL
 import gym
-
+import mujoco
 from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
 from serl_launcher.wrappers.chunking import ChunkingWrapper
 
+# Needed to create the franka environment
 import franka_sim
 
 # Teleoperation imports
@@ -29,30 +25,14 @@ import sys, select, termios, tty
 # Flags
 #-------------------------------------------------------------------------------------------
 flags.DEFINE_string("env", "PandaPickCubeVision-v0", "Name of environment.")
-
-#flags.DEFINE_string("agent", "drq", "Name of agent.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
 flags.DEFINE_integer("max_traj_length", 200, "Maximum length of trajectory.")
-flags.DEFINE_integer("seed", 42, "Random seed.")
-
-# flag to indicate if this is a leaner or a actor
-#flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
-# "small" is a 4 layer convnet, "resnet" and "mobilenet" are frozen with pretrained weights
-flags.DEFINE_string("encoder_type", "resnet-pretrained", "Encoder type.")
-#flags.DEFINE_string("demo_path", None, "Path to the demo data.")
-
 flags.DEFINE_boolean("debug", True, "Debug mode.")  # debug mode will disable wandb logging
-
-flags.DEFINE_string("log_rlds_path", "/data/data/serl/demos/franka_reach_drq_demo_script", "Path to save RLDS logs.")
 #flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 flags.DEFINE_string("output_dir", "/data/data/serl/demos/franka_reach_drq_demo_script",
-                    "Directory to save the output data. This is where the RLDS logs will be saved.")
-                     
+                    "Directory to save the output data. This is where the RLDS logs will be saved.")                     
 flags.DEFINE_integer("num_demos", 2, "Number of episodes to log.")
-
 flags.DEFINE_boolean("enable_envlogger", True, "Enable envlogger.")
-
-# Keyboard teleoperation
 flags.DEFINE_string("teleop_mode", "keyboard", "Teleoperation mode: 'keyboard' or 'spacemouse'.")
 
 FLAGS = flags.FLAGS
@@ -74,28 +54,43 @@ moveBindings = {
     '.':(0,0,-1,0),
         }
 ##############################################################################
-def set_front_cam_view(env):
+def ensure_dir_exists():
     """
-    Set the camera view to a front-facing perspective for better visualization.
-    
-    Args:
-        env: The environment instance containing the viewer.
-    
-    Returns:
-        viewer: The viewer with updated camera settings.
-    """
-    viewer = env.unwrapped._viewer.viewer  # Access the viewer from the environment
-    
-    if hasattr(viewer, 'cam'):
-        viewer.cam.lookat[:] = [0, 0, 0.1]   # Center of robot (adjust as needed)
-        viewer.cam.distance = 3.0            # Camera distance
-        viewer.cam.azimuth = 155             # 0 = right, 90 = front, 180 = left
-        viewer.cam.elevation = -30           # Negative = above, positive = below
+    Ensure that the output directory exists. If it does not exist, create it.
 
-        # Hide menu
-        viewer._hide_overlay = True
+    Returns
+    -------
+    out_path : str
+        The path to the output directory.
+    """
+    # Create a timestamped directory for saving outputs
+    robot = "franka"
+    task = "reach"
+    initStateSpace = "random"  # "fixed" or "random"
+
+    # Customize the path
+    script_dir = FLAGS.output_dir   
+
+    # Create output filename with configuration details
+    fileName = "data_" + robot + "_" + task
+    fileName += "_" + initStateSpace
+    fileName += "_" + str(FLAGS.num_demos)
     
-    return viewer
+    # Add timestamp to filename for uniqueness
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    fileName += "_" + timestamp
+
+    # Build a filename in that same directory
+    out_path = os.path.join(script_dir, fileName)    
+
+    # Ensure the directory exists
+    if not os.path.exists(out_path):
+        os.makedirs(script_dir, exist_ok=True)
+        logging.info(f"Created output directory at: {out_path}")
+    else:
+        logging.info(f"Output directory already exists at: {out_path}")
+
+    return out_path
 
 def getKey(settings):
     """
@@ -183,6 +178,29 @@ def get_kb_demo_action(speed=0.1):
 
     return action
 
+def set_front_cam_view(env):
+    """
+    Set the camera view to a front-facing perspective for better visualization.
+    
+    Args:
+        env: The environment instance containing the viewer.
+    
+    Returns:
+        viewer: The viewer with updated camera settings.
+    """
+    viewer = env.unwrapped._viewer.viewer  # Access the viewer from the environment
+    
+    if hasattr(viewer, 'cam'):
+        viewer.cam.lookat[:] = [0, 0, 0.1]   # Center of robot (adjust as needed)
+        viewer.cam.distance = 2.0            # Camera distance
+        viewer.cam.azimuth = 155             # 0 = right, 90 = front, 180 = left
+        viewer.cam.elevation = -30           # Negative = above, positive = below
+
+        # Hide menu
+        viewer._hide_overlay = True
+    
+    return viewer
+
 ##############################################################################
 def main(unused_argv):
     logging.info(f'Creating gym environment...')
@@ -200,12 +218,17 @@ def main(unused_argv):
         env = gym.wrappers.FlattenObservation(env)
 
     if FLAGS.env == "PandaPickCubeVision-v0":
-        env = SERLObsWrapper(env)
+        # env = SERLObsWrapper(env)
+        env = SERLObsWrapper(
+            env,
+            target_hw=(128, 128),
+            img_dtype=np.uint8,   # or np.float32
+            normalize=False,      # True if using float32 in [0,1]
+        )
         env = ChunkingWrapper(env, obs_horizon=1, act_exec_horizon=None)
 
     logging.info(f'Done creating {FLAGS.env} environment.')
 
-    # Set the camera view to a front-facing perspective
     if hasattr(env.unwrapped, '_viewer'):
         viewer = set_front_cam_view(env)
         if viewer:
@@ -215,10 +238,13 @@ def main(unused_argv):
 
     # If envlogger is enabled, wrap the environment with AutoOXEEnvLogger to log episodes
     if FLAGS.enable_envlogger:
+
+        out_path = ensure_dir_exists()
+
         env = AutoOXEEnvLogger(
             env=env,
             dataset_name=FLAGS.env,
-            directory=FLAGS.output_dir,
+            directory=out_path,
         )
 
     logging.info('Training an agent for %r episodes...', FLAGS.num_demos)
