@@ -17,11 +17,23 @@ except Exception:
     _HAS_PIL = False
 
 def _resize_hwc(img: np.ndarray, hw: tuple[int, int]) -> np.ndarray:
-    """Resize HxWxC image to (H', W', C) without changing dtype/range."""
+    """
+    Resize HxWxC image to (H', W', C) without changing dtype/range.
+    Supports cv2, PIL, or pure NumPy resizing.
+    If img is float32, it will be scaled to [0,1] if not already in that range.
+    If img is uint8, it will be resized as-is.
+
+    Args:
+        img (np.ndarray): Input image in HxWxC format.
+        hw (tuple[int, int]): Target height and width (H', W').
+    Returns:
+        np.ndarray: Resized image in H'xW'xC format.
+    """
     H, W = hw
     if _HAS_CV2:
         # cv2 wants (W, H)
         return cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
+    
     if _HAS_PIL:
         pil = Image.fromarray(img if img.dtype == np.uint8 else np.clip(img, 0, 255).astype(np.uint8))
         pil = pil.resize((W, H), resample=Image.Resampling.BILINEAR)
@@ -30,6 +42,7 @@ def _resize_hwc(img: np.ndarray, hw: tuple[int, int]) -> np.ndarray:
             # If original was float, map back to float [0,1]
             out = out.astype(np.float32) / 255.0
         return out
+    
     # Pure NumPy (simple nearest neighbor)
     y_idx = (np.linspace(0, img.shape[0] - 1, H)).astype(np.int32)
     x_idx = (np.linspace(0, img.shape[1] - 1, W)).astype(np.int32)
@@ -37,8 +50,21 @@ def _resize_hwc(img: np.ndarray, hw: tuple[int, int]) -> np.ndarray:
 
 class SERLObsWrapper(gym.ObservationWrapper):
     """
-    This observation wrapper treat the observation space as a dictionary
-    of a flattened state space and the images.
+    Observation wrapper for SERL environments.
+    Flattens the 'state' space and resizes images to a target height and width.
+    Supports both uint8 and float32 images, with optional normalization.
+    The observation space is a Dict with 'state' and resized image spaces.
+
+    Args:
+        env (gym.Env): The environment to wrap.
+        target_hw (tuple[int, int]): Target height and width for resized images.
+        img_dtype (np.dtype): Data type for images, either np.uint8 or np.float32.
+        normalize (bool): If True, scales float32 images to [0,1].
+        image_parent_key (str): Key in the observation dict where images are stored.    
+
+        Defaults to "images".
+    Returns:
+        gym.spaces.Dict: The new observation space with flattened state and resized images.
     """
 
     def __init__(
