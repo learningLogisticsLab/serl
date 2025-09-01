@@ -1,10 +1,11 @@
+import copy
+from typing import Iterable, Optional
+
 import gym
 import numpy as np
-from serl_launcher.data.dataset import DatasetDict
+from serl_launcher.data.dataset import DatasetDict, _sample
 from serl_launcher.data.replay_buffer import ReplayBuffer
-import copy
-
-from datetime import datetime as dt
+from flax.core import frozen_dict
 
 class FractalSymmetryReplayBuffer(ReplayBuffer):
     def __init__(
@@ -47,27 +48,32 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             print(f"\033[33mWARNING \033[0m argument \"{k}\" not used")
         
         # Account for images
+        self._num_stack = None
+        next_observation_space = None
         if self.img_keys:
-            img_buffer_size = (capacity + self.expected_branches - 1) // self.expected_branches + 1
             self.img_buffer = {}
-            self.insert = self.insert_with_images
-        for k in img_keys:
-            temp = np.empty(shape=observation_space.spaces[k].shape, dtype=observation_space.spaces[k].dtype)
-            temp = temp[np.newaxis, :]
-            self.img_buffer[k] = np.repeat(temp, img_buffer_size, axis=0)
+            next_observation_space_dict = copy.deepcopy(observation_space.spaces)
+            for k in img_keys:
+                img_obs_space = observation_space.spaces[k]
+                if self._num_stack is None:
+                    self._num_stack = img_obs_space.shape[0]
+                img_buffer_size = ((self.expected_branches + capacity - 1) // self.expected_branches) * (self._num_stack + 1)
+                buffer_shape = list(img_obs_space.shape[1:])
+                buffer_shape.insert(0, img_buffer_size)
+                self.img_buffer[k] = np.empty(buffer_shape, img_obs_space.dtype)
+                
+                observation_space.spaces[k] = gym.spaces.Box(low=float('-inf'), high=float('inf'), shape=(), dtype=np.int32)
+                next_observation_space_dict.pop(k)
+            next_observation_space = gym.spaces.Dict(next_observation_space_dict)
             
-            observation_space.spaces[k] = gym.spaces.Box(low=float('-inf'), high=float('inf'), shape=(1,), dtype=np.int32)
 
         # Init replay buffer class
         super().__init__(
             observation_space=observation_space,
+            next_observation_space=next_observation_space,
             action_space=action_space,
             capacity=capacity,
         )
-
-        for k in img_keys:
-            self.dataset_dict["observations"][k] = self.dataset_dict["observations"][k].flatten()
-            self.dataset_dict["next_observations"][k] = self.dataset_dict["next_observations"][k].flatten()
 
         self.generate_transform_deltas()
 
@@ -89,7 +95,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.branch = self.fractal_branch
                 if not self.split_method:
                     self.split_method = "time"
-                self.expected_branches = self.branching_factor ** self.max_depth
+                self.expected_branches = (self.branching_factor ** self.max_depth) ** 2
             
             case "contraction":
                 self._handle_method_arg_("max_depth", "branch_method", self.branch_method, kwargs)
@@ -98,7 +104,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.branch = self.fractal_contraction
                 if not self.split_method:
                     self.split_method = "time"
-                self.expected_branches = self.branching_factor ** self.max_depth
+                self.expected_branches = (self.branching_factor ** self.max_depth) ** 2
             
             case "linear":
                 raise NotImplementedError("linear branch method is not yet implemented")
@@ -125,7 +131,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.branch = self.disassociated_branch
                 if not self.split_method:
                     self.split_method = "time"
-                self.expected_branches = self.max_branch_count
+                self.expected_branches = self.max_branch_count ** 2
             
             case "constant":
                 self._handle_method_arg_("starting_branch_count", "branch_method", self.branch_method, kwargs)
@@ -133,7 +139,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 self.branch = self.constant_branch
                 if not self.split_method:
                     self.split_method = "never"
-                self.expected_branches = self.starting_branch_count
+                self.expected_branches = self.starting_branch_count ** 2
             
             case _:
                 raise ValueError("incorrect value passed to branch_method")
@@ -165,7 +171,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         if self.img_keys:
             obs_state = self.dataset_dict["observations"]["state"]
 
-        obs_size = len(obs_state[0])
+        obs_size = obs_state.shape[-1]
         total_branches = self.current_branch_count ** 2
 
         self.transform_deltas = np.zeros(shape=(total_branches, obs_size), dtype=np.float32)
@@ -180,8 +186,12 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
         x_deltas = np.reshape(x_deltas, (total_branches, self.x_obs_idx.size))
         y_deltas = np.reshape(y_deltas, (total_branches, self.y_obs_idx.size))
 
-        self.transform_deltas[:, self.x_obs_idx] = x_deltas
-        self.transform_deltas[:, self.y_obs_idx] = y_deltas
+        self.transform_deltas[..., self.x_obs_idx] = x_deltas
+        self.transform_deltas[..., self.y_obs_idx] = y_deltas
+
+        if self._num_stack:
+            self.transform_deltas = np.expand_dims(self.transform_deltas, axis=1)
+            self.transform_deltas = np.repeat(self.transform_deltas, self._num_stack, axis=1)
     
     def fractal_branch(self):
         '''
@@ -265,13 +275,28 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
 
     def insert_images(self, observation: dict):
         for k in self.img_keys:
-            self.img_buffer[k][self._img_insert_index_] = observation[k]
+            if self._num_stack:
+                self.img_buffer[k][self._img_insert_index_] = observation[k][0, ...]
+            else:
+                self.img_buffer[k][self._img_insert_index_] = observation[k]
         self._img_insert_index_ += 1
 
     def insert(self, data: DatasetDict):
 
         data_dict = copy.deepcopy(data)
 
+        if self.img_keys:
+            obs = data_dict["observations"]["state"]
+            n_obs = data_dict["next_observations"]["state"]
+        else:
+            obs = data_dict["observations"]
+            n_obs = data_dict["next_observations"]
+
+        actions = data_dict["actions"]
+        rewards = data_dict["rewards"]
+        masks = data_dict["masks"]
+        dones = data_dict["dones"]
+
         # Update number of branches if needed
         if self.split(data_dict):
             temp = self.current_branch_count
@@ -282,84 +307,50 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
 
         # Initialize to extreme x and y
         base_diff = -self.workspace_width/2
-        data_dict["observations"][self.x_obs_idx] += base_diff
-        data_dict["observations"][self.y_obs_idx] += base_diff
-        data_dict["next_observations"][self.x_obs_idx] += base_diff
-        data_dict["next_observations"][self.y_obs_idx] += base_diff
+        obs[..., self.x_obs_idx] += base_diff
+        obs[..., self.y_obs_idx] += base_diff
+        n_obs[..., self.x_obs_idx] += base_diff
+        n_obs[..., self.y_obs_idx] += base_diff
 
-        # Transform and insert transitions
+        # Transform transitions
         num_transforms = self.current_branch_count ** 2
-        obs_batch = np.tile(data_dict["observations"], (num_transforms, 1))
-        next_obs_batch = np.tile(data_dict["next_observations"], (num_transforms, 1))
 
-        obs_batch += self.transform_deltas
-        next_obs_batch += self.transform_deltas
+        obs_shape = np.ones(len(obs.shape) + 1, dtype=int)
+        obs_shape[0] = num_transforms
+        obs = np.tile(obs, obs_shape)
+        n_obs = np.tile(n_obs, obs_shape)
+        actions = np.tile(actions, (num_transforms, 1))
+        rewards = np.tile(rewards, num_transforms)
+        masks = np.tile(masks, num_transforms)
+        dones = np.tile(dones, num_transforms)
 
-        
-        data_dict["observations"] = obs_batch
-        data_dict["next_observations"] = next_obs_batch
-        data_dict["actions"] = np.tile(data_dict["actions"], (num_transforms, 1))
-        data_dict["rewards"] = np.tile(data_dict["rewards"], num_transforms)
-        data_dict["masks"] = np.tile(data_dict["masks"], num_transforms)
-        data_dict["dones"] = np.tile(data_dict["dones"], num_transforms)
+        obs += self.transform_deltas
+        n_obs += self.transform_deltas
 
-        super().insert(data_dict, batch_size=num_transforms)
-
-        # Reset current_depth, timestep, and max_traj_length
-        self.timestep += 1
-        if data_dict["dones"][0]:
-            self.current_depth = 0
-            if self.update_max_traj_length:
-                self.max_traj_length = int(self.timestep * self.alpha + self.max_traj_length * (1 - self.alpha))
-            self.timestep = 0
-
-    def insert_with_images(self, data: DatasetDict):
-
-        data_dict = copy.deepcopy(data)
-        
-        # Update number of branches if needed
-        if self.split(data_dict):
-            temp = self.current_branch_count
-            self.current_branch_count = self.branch()
-            # Update transform_deltas if needed
-            if temp != self.current_branch_count:
-                self.generate_transform_deltas()
-        
         # Insert images
-        if self.timestep == 0:
-            self.insert_images(data_dict["observations"])
-        self.insert_images(data_dict["next_observations"])
+        if self.img_keys:
+            if self.timestep == 0:
+                for i in range(self._num_stack):
+                    self.insert_images(data_dict["observations"])
+            self.insert_images(data_dict["next_observations"])
 
         for k in self.img_keys:
-            data_dict["observations"][k] = (self._img_insert_index_ - 2) % len(self.img_buffer[k])
-            data_dict["next_observations"][k] = (self._img_insert_index_ - 1) % len(self.img_buffer[k])
-                
-        # Initialize to extreme x and y
-        base_diff = -self.workspace_width/2
-        data_dict["observations"]["state"][self.x_obs_idx] += base_diff
-        data_dict["observations"]["state"][self.y_obs_idx] += base_diff
-        data_dict["next_observations"]["state"][self.x_obs_idx] += base_diff
-        data_dict["next_observations"]["state"][self.y_obs_idx] += base_diff
-        
-        # Transform and insert transitions
-        num_transforms = self.current_branch_count ** 2
-        obs_batch = np.tile(data_dict["observations"]["state"], (num_transforms, 1))
-        next_obs_batch = np.tile(data_dict["next_observations"]["state"], (num_transforms, 1))
-
-        obs_batch += self.transform_deltas
-        next_obs_batch += self.transform_deltas
-
-        
-        data_dict["observations"]["state"] = obs_batch
-        data_dict["next_observations"]["state"] = next_obs_batch
-        data_dict["actions"] = np.tile(data_dict["actions"], (num_transforms, 1))
-        data_dict["rewards"] = np.tile(data_dict["rewards"], num_transforms)
-        data_dict["masks"] = np.tile(data_dict["masks"], num_transforms)
-        data_dict["dones"] = np.tile(data_dict["dones"], num_transforms)
-
-        for k in self.img_keys:
+            data_dict["observations"][k] = (self._img_insert_index_ - 1) % len(self.img_buffer[k])
             data_dict["observations"][k] = np.tile(data_dict["observations"][k], num_transforms)
-            data_dict["next_observations"][k] = np.tile(data_dict["next_observations"][k], num_transforms)
+            data_dict["next_observations"].pop(k)
+
+        # Pack back into dictionary and insert
+        if self.img_keys:
+            data_dict["observations"]["state"] = obs
+            data_dict["next_observations"]["state"] = n_obs
+        else:
+            data_dict["observations"] = obs
+            data_dict["next_observations"] = n_obs
+
+        data_dict["actions"] = actions
+        data_dict["rewards"] = rewards
+        data_dict["masks"] = masks
+        data_dict["dones"] = dones
 
         super().insert(data_dict, batch_size=num_transforms)
 
@@ -370,3 +361,80 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
             if self.update_max_traj_length:
                 self.max_traj_length = int(self.timestep * self.alpha + self.max_traj_length * (1 - self.alpha))
             self.timestep = 0
+    
+    def sample(
+        self, batch_size: int, keys: Optional[Iterable[str]] = None, indx: Optional[np.ndarray] = None, pack_obs_and_next_obs: bool = False,
+    ) -> frozen_dict.FrozenDict:
+        """Samples from the replay buffer.
+
+        Args:
+            batch_size: Minibatch size.
+            keys: Keys to sample.
+            indx: Take indices instead of sampling.
+            pack_obs_and_next_obs: whether to pack img and next_img into one image.
+                It's useful when they have overlapping frames.
+
+        Returns:
+            A frozen dictionary.
+        """
+        # If no images, sample normally
+        if not self.img_keys:
+            return super().sample(batch_size, keys, indx)
+        
+        # Generate random indexes for sampling
+        if indx is None:
+            if hasattr(self.np_random, "integers"):
+                indx = self.np_random.integers(len(self), size=batch_size)
+            else:
+                indx = self.np_random.randint(len(self), size=batch_size)
+
+            for i in range(batch_size):
+                while not self._is_correct_index[indx[i]]:
+                    if hasattr(self.np_random, "integers"):
+                        indx[i] = self.np_random.integers(len(self))
+                    else:
+                        indx[i] = self.np_random.randint(len(self))
+        else:
+            raise NotImplementedError()
+
+        # Sample w/o images
+        if keys is None:
+            keys = self.dataset_dict.keys()
+        else:
+            assert "observations" in keys
+
+        keys = list(keys)
+        keys.remove("observations")
+
+        batch = super().sample(batch_size, keys, indx)
+        batch = batch.unfreeze()
+
+        obs_keys = self.dataset_dict["observations"].keys()
+        obs_keys = list(obs_keys)
+        for k in self.img_keys:
+            obs_keys.remove(k)
+
+        batch["observations"] = {}
+        for k in obs_keys:
+            batch["observations"][k] = _sample(
+                self.dataset_dict["observations"][k], indx
+            )
+
+        # Sample images
+        for k in self.img_keys:
+            obs_imgs = self.img_buffer[k]
+            obs_imgs = np.lib.stride_tricks.sliding_window_view(
+                obs_imgs, self._num_stack + 1, axis=0
+            )
+            obs_imgs = obs_imgs[self.dataset_dict["observations"][k][indx] - self._num_stack]
+            # transpose from (B, H, W, C, T) to (B, T, H, W, C) to follow jaxrl_m convention
+            obs_imgs = obs_imgs.transpose((0, 4, 1, 2, 3))
+
+            if pack_obs_and_next_obs:
+                batch["observations"][k] = obs_imgs
+            else:
+                batch["observations"][k] = obs_imgs[:, :-1, ...]
+                if "next_observations" in keys:
+                    batch["next_observations"][k] = obs_imgs[:, 1:, ...]
+
+        return frozen_dict.freeze(batch)
