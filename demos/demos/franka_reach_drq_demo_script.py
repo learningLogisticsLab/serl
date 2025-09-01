@@ -53,44 +53,74 @@ moveBindings = {
     'm':(0,0,1,0),
     '.':(0,0,-1,0),
         }
+
+# Extend bindings to include camera controls
+camBindings = {
+    'a': ("azimuth", -5),   # rotate left
+    'd': ("azimuth", 5),    # rotate right
+    'w': ("elevation", 2),  # tilt up
+    's': ("elevation", -2), # tilt down
+    'q': ("distance", -0.1),# zoom in
+    'e': ("distance", 0.1), # zoom out
+}
+
+
+def update_camera(viewer,key):
+    """
+    Update the camera view based on keyboard input. Assumes higher level function has checked for the existance of key in camBindings.
+    Controls:
+        'a' : rotate left
+        'd' : rotate right
+        'w' : tilt up
+        's' : tilt down
+        'q' : zoom in
+        'e' : zoom out
+    """
+    if hasattr(viewer, 'cam'):
+        # Get current camera parameters
+        attr, delta = camBindings[key]            
+        val = getattr(viewer.cam, attr)
+
+        setattr(viewer.cam, attr, val + delta)   
+
+
+
 ##############################################################################
 def ensure_dir_exists():
     """
-    Ensure that the output directory exists. If it does not exist, create it.
+    For oxe_envlogger + RLDS compatibility, data must be written in the following format:
+    /data/data/serl/demos/franka_reach_drq_demo_script/
+    └── session_20250821_222412/
+        └── PandaPickCubeVision-v0/
+            └── 0.1.0/
+                dataset_info.json
+                features.json
+                PandaPickCubeVision-v0-train.tfrecord-00000-of-00001
+
+    We can have a base path with customized sessions inside. 
+    Inside each session we have: env-version-files
+
 
     Returns
     -------
     out_path : str
         The path to the output directory.
     """
-    # Create a timestamped directory for saving outputs
-    robot = "franka"
-    task = "reach"
-    initStateSpace = "random"  # "fixed" or "random"
-
     # Customize the path
-    script_dir = FLAGS.output_dir   
+    root = FLAGS.output_dir 
+    session = datetime.now().strftime("session_%Y%m%d_%H%M%S")
+    session_root = os.path.join(root, session, '_num_demos_', str(FLAGS.num_demos))
+
+    # Dataset details
+    dataset_name = FLAGS.env
+    version = "0.1.0"  # PArt of RLDS format. needed.
 
     # Create output filename with configuration details
-    fileName = "data_" + robot + "_" + task
-    fileName += "_" + initStateSpace
-    fileName += "_" + str(FLAGS.num_demos)
+    dataset_dir = os.path.join(session_root, dataset_name, version)
+    os.makedirs(dataset_dir, exist_ok=True)
+    logging.info(f"TFDS builder dir: {dataset_dir}")
     
-    # Add timestamp to filename for uniqueness
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    fileName += "_" + timestamp
-
-    # Build a filename in that same directory
-    out_path = os.path.join(script_dir, fileName)    
-
-    # Ensure the directory exists
-    if not os.path.exists(out_path):
-        os.makedirs(script_dir, exist_ok=True)
-        logging.info(f"Created output directory at: {out_path}")
-    else:
-        logging.info(f"Output directory already exists at: {out_path}")
-
-    return out_path
+    return dataset_dir
 
 def getKey(settings):
     """
@@ -122,9 +152,11 @@ def getKey(settings):
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
     return key
 
-def get_kb_demo_action(speed=0.1):
+def get_kb_demo_action(env,speed=0.1):
     """
-    Reads keyboard input and maps it to a 3D action vector for robot control.
+    Reads keyboard input and maps it to a 3D action vector for robot control or camera action. 
+    TODO: currently can only read one key at a time. Needs to be extended to read multiple keys to handle both.
+    Otherwise, none actions are still considered steps in the loop. 
 
     The function uses non-blocking keyboard input to allow interactive
     teleoperation. Keys are mapped to directions in Cartesian space:
@@ -157,7 +189,13 @@ def get_kb_demo_action(speed=0.1):
         # Capture the pressed key 
         key = getKey(settings)
 
-        if key in moveBindings:
+        # Check keys for camera first, if so, update camera and get another key for action
+        if key in camBindings:               
+            if hasattr(env.unwrapped, "_viewer"):
+                update_camera(env.unwrapped._viewer.viewer,key) 
+                key = getKey(settings) # get another key for action
+
+        elif key in moveBindings:
             # Lookup (x, y, z) direction and scale by speed
             dx, dy, dz, g= moveBindings[key]
             action = np.array([dx, dy, dz, g], dtype=float) * speed
@@ -239,12 +277,13 @@ def main(unused_argv):
     # If envlogger is enabled, wrap the environment with AutoOXEEnvLogger to log episodes
     if FLAGS.enable_envlogger:
 
-        out_path = ensure_dir_exists()
+        dataset_dir = ensure_dir_exists()
 
         env = AutoOXEEnvLogger(
             env=env,
             dataset_name=FLAGS.env,
-            directory=out_path,
+            directory=dataset_dir,
+            #split_name="train", # "train", "test", or "validation"
         )
 
     logging.info('Training an agent for %r episodes...', FLAGS.num_demos)
@@ -255,6 +294,8 @@ def main(unused_argv):
 
         # Log custom metadata during new episode: language embeddings randomly.
         if FLAGS.enable_envlogger:
+            # The "language_embedding" is a standard field used in robotics datasets (like the OXE format that envlogger creates) to store a numerical representation of a natural language instruction for an episode.
+            # How to Reconcile it with 5 Random Numbers: The five random numbers are just placeholder data. This script is a demonstration and doesn't involve a real language model.
             env.set_episode_metadata({
                 "language_embedding": np.random.random((5,)).astype(np.float32)
             })
@@ -270,14 +311,14 @@ def main(unused_argv):
         step = 0
 
         # Termination occurs when the hand reaches the target or the maximum trajectory length is reached
-        while not (terminated or truncated):
+        while not (terminated or truncated):          
             
             # Get action from the demo function
-            action = get_kb_demo_action()
+            action = get_kb_demo_action(env)            
 
             # example to log custom step metadata
             if FLAGS.enable_envlogger:
-                env.set_step_metadata({"timestamp": time.time()})
+               env.set_step_metadata({"timestamp": np.float32(time.time())})
 
             return_step = env.step(action)
 
