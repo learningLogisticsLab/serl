@@ -21,12 +21,17 @@ import franka_sim
 # Teleoperation imports
 import sys, select, termios, tty
 
+# RLDS/TFDS
+import json, glob, inspect
+import tensorflow as tf
+import tensorflow_datasets as tfds
+from tensorflow_datasets import folder_dataset
 #-------------------------------------------------------------------------------------------
 # Flags
 #-------------------------------------------------------------------------------------------
 flags.DEFINE_string("env", "PandaPickCubeVision-v0", "Name of environment.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
-flags.DEFINE_integer("max_traj_length", 200, "Maximum length of trajectory.")
+flags.DEFINE_integer("max_traj_length", 100, "Maximum length of trajectory.")
 flags.DEFINE_boolean("debug", True, "Debug mode.")  # debug mode will disable wandb logging
 #flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 flags.DEFINE_string("output_dir", "/data/data/serl/demos/franka_reach_drq_demo_script",
@@ -64,7 +69,6 @@ camBindings = {
     'e': ("distance", 0.1), # zoom out
 }
 
-
 def update_camera(viewer,key):
     """
     Update the camera view based on keyboard input. Assumes higher level function has checked for the existance of key in camBindings.
@@ -83,9 +87,211 @@ def update_camera(viewer,key):
 
         setattr(viewer.cam, attr, val + delta)   
 
+def close_logger_and_env(env):
+    """
+    Best-effort shutdown:
+      1) close embedded envloggers/writers if present
+      2) close dm_env (if you have a DeepMind-style env)
+      3) close Gym/Gymnasium env
+      4) close the Mujoco viewer
+    Also walks through common wrapper attributes (env, _env, unwrapped).
+    """
+    import logging
 
+    visited = set()
+
+    def _safe_close(obj, label=""):
+        if obj is None or id(obj) in visited:
+            return
+        visited.add(id(obj))
+
+        # 1) Close common logger/writer attributes first (flush TFRecord)
+        for name in ("_envlogger", "envlogger", "logger", "_logger", "writer"):
+            try:
+                logger_obj = getattr(obj, name, None)
+                if logger_obj is not None and hasattr(logger_obj, "close"):
+                    logger_obj.close()
+            except Exception as e:
+                logging.warning(f"close_logger_and_env: {label}.{name}.close() raised {e!r}")
+
+        # 2) Close dm_env if present
+        try:
+            dm = getattr(obj, "dm_env", None)
+            if dm is not None and hasattr(dm, "close"):
+                dm.close()
+        except Exception as e:
+            logging.warning(f"close_logger_and_env: {label}.dm_env.close() raised {e!r}")
+
+        # 3) Close Gym/Gymnasium env
+        try:
+            if hasattr(obj, "close"):
+                obj.close()
+        except Exception as e:
+            logging.warning(f"close_logger_and_env: {label}.close() raised {e!r}")
+
+        # 4) Close Mujoco viewer if accessible
+        try:
+            # Some stacks keep viewer at env._viewer.viewer; others just env._viewer
+            viewer = None
+            vwrap = getattr(obj, "_viewer", None)
+            if vwrap is not None:
+                viewer = getattr(vwrap, "viewer", vwrap)
+            if viewer is not None and hasattr(viewer, "close"):
+                viewer.close()
+        except Exception as e:
+            logging.warning(f"close_logger_and_env: {label} viewer close raised {e!r}")
+
+        # Recurse into common wrapper links
+        for child_name in ("env", "_env", "unwrapped", "environment", "base_env"):
+            child = getattr(obj, child_name, None)
+            if child is not None and child is not obj:
+                _safe_close(child, f"{label}.{child_name}" if label else child_name)
+
+    _safe_close(env, "env")
 
 ##############################################################################
+# -----------------------------------------------------------------------------
+# Finalize TFDS metadata so TFDS can load the split without manual edits.
+# -----------------------------------------------------------------------------
+# def finalize_tfds_metadata(builder_dir: str):
+#     """
+#     Make the TFDS builder dir loadable by writing numShards/shardLengths.
+#     Works with new/old TFDS; prints helpful diagnostics if filenames don't match.
+#     """
+#     import os, json, glob, inspect
+#     import tensorflow as tf
+#     import tensorflow_datasets as tfds
+#     try:
+#         from tensorflow_datasets import folder_dataset
+#     except Exception:
+#         from tensorflow_datasets.core import folder_dataset
+
+#     info_path = os.path.join(builder_dir, "dataset_info.json")
+#     if not os.path.exists(info_path):
+#         raise FileNotFoundError(f"Missing dataset_info.json in {builder_dir}")
+
+#     with open(info_path) as f:
+#         info = json.load(f)
+
+#     dataset_name   = info["name"]                       # e.g., PandaPickCubeVision-v0
+#     file_format    = info.get("fileFormat", "tfrecord") # "tfrecord"
+#     # Use the exact template written by the logger
+#     template_str   = info["splits"][0]["filepathTemplate"]
+
+#     # Construct a ShardedFileTemplate object TFDS uses to discover shard files. This object encodes the directory, dataset name, suffix, and the template expression.
+#     template = tfds.core.ShardedFileTemplate(
+#         data_dir=builder_dir,
+#         dataset_name=dataset_name,
+#         filetype_suffix=file_format,
+#         template=template_str,
+#     )
+
+#     # Quick diagnostics so mismatches are obvious
+#     print(f"[finalize] builder_dir: {builder_dir}")
+#     print(f"[finalize] template:    {template_str} (dataset={dataset_name}, suffix={file_format})")
+#     print("[finalize] files found:  ", sorted(glob.glob(os.path.join(builder_dir, f"*.{file_format}*"))))
+
+#     # Attempt the canonical TFDS way: compute per-split shard stats by scanning files that match the template. Different TFDS versions call the directory argument out_dir or data_dir, so it inspects the signature and passes the right name.
+#     try:
+#         sig = inspect.signature(folder_dataset.compute_split_info).parameters
+#         if "out_dir" in sig:
+#             # Compute the split info (num shards, num examples,...). See more at https://www.tensorflow.org/datasets/api_docs/python/tfds/folder_dataset/compute_split_info
+#             split_infos = folder_dataset.compute_split_info(out_dir=builder_dir, filename_template=template)
+#         else:
+#             split_infos = folder_dataset.compute_split_info(data_dir=builder_dir, filename_template=template)
+
+#         sig_w = inspect.signature(folder_dataset.write_metadata).parameters
+#         kwargs = dict(split_infos=split_infos, filename_template=template)
+#         if "out_dir" in sig_w:
+#             kwargs["out_dir"] = builder_dir
+#         else:
+#             kwargs["data_dir"] = builder_dir
+#         if "features" in sig_w:
+#             kwargs["features"] = None
+#         folder_dataset.write_metadata(**kwargs)
+
+#     except ValueError as e:
+#         # Common cause: filenames don’t match the template, or shards not flushed yet.
+#         print(f"[finalize] TFDS compute_split_info failed: {e}")
+#         shard_paths = sorted(glob.glob(os.path.join(builder_dir, f"{dataset_name}-*.{file_format}-*")))
+#         if not shard_paths:
+#             # last resort: any .tfrecord* under the dir
+#             shard_paths = sorted(glob.glob(os.path.join(builder_dir, f"*.{file_format}*")))
+#         if not shard_paths:
+#             raise ValueError(
+#                 f"No {file_format} shards found in {builder_dir}. "
+#                 f"Expected filenames like '{dataset_name}-train.{file_format}-00000' "
+#                 f"per template '{template_str}'."
+#             ) from e
+
+#         # Count records per shard and patch dataset_info.json automatically
+#         shard_lengths = []
+#         for p in shard_paths:
+#             n = sum(1 for _ in tf.data.TFRecordDataset(p))
+#             shard_lengths.append(n)
+
+#         # Write lengths for each split that uses the template (here, 'train')
+#         for s in info["splits"]:
+#             # Only add lengths for splits that use this file template
+#             if s.get("filepathTemplate") == template_str:
+#                 s["numShards"] = len(shard_paths)
+#                 s["shardLengths"] = shard_lengths
+
+#         with open(info_path, "w") as f:
+#             json.dump(info, f, indent=2)
+#         print(f"[finalize] wrote shardLengths={shard_lengths} into {info_path}")
+
+#     # Sanity
+#     b = tfds.builder_from_directory(builder_dir)
+#     print("[finalize] splits:", {k: v.num_examples for k, v in b.info.splits.items()})
+
+def finalize_tfds_metadata_beamless(builder_dir: str):
+    """
+    Beam-free finalize: count TFRecord examples per shard and write
+    numShards/shardLengths into dataset_info.json so TFDS will load.
+    """
+    import os, json, glob
+    import tensorflow as tf
+
+    info_path = os.path.join(builder_dir, "dataset_info.json")
+    if not os.path.exists(info_path):
+        raise FileNotFoundError(f"Missing dataset_info.json in {builder_dir}")
+
+    with open(info_path) as f:
+        info = json.load(f)
+
+    ds_name    = info["name"]                    # e.g. "PandaPickCubeVision-v0"
+    file_fmt   = info.get("fileFormat", "tfrecord")
+    tmpl_str   = info["splits"][0]["filepathTemplate"]
+
+    # Prefer strict pattern "<name>-<split>.<fmt>-<shard>"
+    shard_paths = sorted(glob.glob(os.path.join(builder_dir, f"{ds_name}-*.{file_fmt}-*")))
+    if not shard_paths:
+        # Fallback to any tfrecord-like file
+        shard_paths = sorted(glob.glob(os.path.join(builder_dir, f"*.{file_fmt}*")))
+    if not shard_paths:
+        raise FileNotFoundError(
+            f"No {file_fmt} shards found in {builder_dir}. "
+            f"Expected like '{ds_name}-train.{file_fmt}-00000' per template '{tmpl_str}'."
+        )
+
+    # Count episodes (1 Example = 1 episode with envlogger/RLDS)
+    shard_lengths = [sum(1 for _ in tf.data.TFRecordDataset(p)) for p in shard_paths]
+
+    # Write lengths for each split using this template
+    for s in info["splits"]:
+        if s.get("filepathTemplate") == tmpl_str:
+            s["numShards"]    = len(shard_paths)
+            s["shardLengths"] = shard_lengths
+    # Re-write dataset_info.json with updated shard info
+    with open(info_path, "w") as f:
+        json.dump(info, f, indent=2)
+
+    # Sanity log
+    import tensorflow_datasets as tfds
+    b = tfds.builder_from_directory(builder_dir)
+    print("[finalize] splits:", {k: v.num_examples for k, v in b.info.splits.items()})
+
 def ensure_dir_exists():
     """
     For oxe_envlogger + RLDS compatibility, data must be written in the following format:
@@ -109,7 +315,7 @@ def ensure_dir_exists():
     # Customize the path
     root = FLAGS.output_dir 
     session = datetime.now().strftime("session_%Y%m%d_%H%M%S")
-    session_root = os.path.join(root, session, '_num_demos_', str(FLAGS.num_demos))
+    session_root = os.path.join(root, f"{session}_num_demos_{FLAGS.num_demos}")
 
     # Dataset details
     dataset_name = FLAGS.env
@@ -274,7 +480,9 @@ def main(unused_argv):
         else:
             logging.warning('Failed to set camera view. Viewer not available.')
 
-    # If envlogger is enabled, wrap the environment with AutoOXEEnvLogger to log episodes
+    # Wrap with oxe_envlogger to record demos
+    dataset_dir = None
+    session_root = None
     if FLAGS.enable_envlogger:
 
         dataset_dir = ensure_dir_exists()
@@ -285,8 +493,7 @@ def main(unused_argv):
             directory=dataset_dir,
             #split_name="train", # "train", "test", or "validation"
         )
-
-    logging.info('Training an agent for %r episodes...', FLAGS.num_demos)
+    logging.info('Recording %r demos...', FLAGS.num_demos)
 
     #--- LOOP DEMOS/EPISODES ---
     # Loop through the number of demos specified by the user to record demonstrations
@@ -332,10 +539,23 @@ def main(unused_argv):
             print(f" step: {step}", f"reward: {reward:.3f}\n")
             step += 1
 
-    logging.info(
-        'Done training a random agent for %r episodes.', FLAGS.num_demos)
-    
-    #env.close() # it seems async_drq_sim does not use close() dm_env method error.
+    logging.info('Done recording %r demos.', FLAGS.num_demos)
+
+    # Finalize TFDS metadata so SERL/TFDS can load the split
+    if FLAGS.enable_envlogger and dataset_dir is not None:
+
+        # Close the environment to flush/write data. AutoOXEEnvLogger implements dm_env.close() 
+        # which flushes data to disk. This is important to ensure all data is written before finalizing metadata.
+        # If you skip this step, some data may not be written and the dataset may be incomplete.
+        logging.info("Closing environment to flush data to disk...")
+
+        # closes logger(s) + dm_env + gym + viewer
+        close_logger_and_env(env)                      
+
+        # Scan files and write metadata
+        finalize_tfds_metadata_beamless(dataset_dir)
+
+    # Note: async_drq_sim will read from the dataset_dir you printed above.
 
 if __name__ == '__main__':
     app.run(main)
