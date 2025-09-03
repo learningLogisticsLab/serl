@@ -150,13 +150,16 @@ class FractalSymmetryReplayBufferDataStore(FractalSymmetryReplayBuffer, DataStor
         observation_space: gym.Space,
         action_space: gym.Space,
         capacity: int,
+        workspace_width: int,
+        x_obs_idx,
+        y_obs_idx,
         branch_method: str,
         split_method: str,
-        workspace_width: int,
         rlds_logger: Optional[RLDSLogger] = None,
+        image_keys: Iterable[str] = None,
         **kwargs: dict,
     ):
-        FractalSymmetryReplayBuffer.__init__(self, observation_space, action_space, capacity, branch_method, split_method, workspace_width, **kwargs)
+        FractalSymmetryReplayBuffer.__init__(self, observation_space, action_space, capacity, workspace_width, x_obs_idx, y_obs_idx, branch_method, split_method, image_keys, **kwargs)
         DataStoreBase.__init__(self, capacity)
         self._lock = Lock()
         self._logger = None
@@ -222,7 +225,6 @@ def populate_data_store(
                 data_store.insert(transition)
         print(f"Loaded {len(data_store)} transitions.")
     return data_store
-
 
 def populate_data_store_with_z_axis_only(
     data_store: DataStoreBase,

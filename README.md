@@ -53,7 +53,7 @@ We fixed a major issue in the intervention action frame. See release [v0.1.1](ht
 
     - For GPU:
         ```bash
-        pip install --upgrade "jax[cuda12_pip]==0.4.35" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+        pip install --upgrade "jax[cuda12]==0.6.2"
         ```
 
     - For TPU
@@ -81,6 +81,12 @@ We fixed a major issue in the intervention action frame. See release [v0.1.1](ht
 5. **Install the serl_robot_infra**
     ```bash
     cd serl_robot_infra
+    pip install -e .
+    ```
+
+6. **Install the demos**
+    ```bash
+    cd demos
     pip install -e .
     ```
 

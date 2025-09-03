@@ -180,13 +180,17 @@ def make_trainer_config(port_number: int = 5488, broadcast_port: int = 5489):
 
 def make_wandb_logger(
     project: str = "agentlace",
+    name: str = "placeholder_run_name",
     description: str = "serl_launcher",
+    wandb_output_dir: str = None,
     debug: bool = False,
+    offline: bool = False,
 ):
     wandb_config = WandBLogger.get_default_config()
     wandb_config.update(
         {
             "project": project,
+            "name": name,
             "exp_descriptor": description,
             "tag": description,
         }
@@ -194,7 +198,9 @@ def make_wandb_logger(
     wandb_logger = WandBLogger(
         wandb_config=wandb_config,
         variant={},
+        wandb_output_dir=wandb_output_dir,
         debug=debug,
+        offline=offline
     )
     return wandb_logger
 
@@ -210,7 +216,9 @@ def make_replay_buffer(
     branch_method: str = None, # used only type=="fractal_symmetry_replay_buffer"
     split_method : str = None, # used only type=="fractal_symmetry_replay_buffer"
     workspace_width : float = None, # used only type=="fractal_symmetry_replay_buffer"
-    
+    workspace_width_method : str = None, # used only type=="fractal_symmetry_replay_buffer"
+    x_obs_idx = None,
+    y_obs_idx = None,
     **kwargs: dict # used only type=="fractal_symmetry_replay_buffer"
 ):
     """
@@ -268,9 +276,13 @@ def make_replay_buffer(
             branch_method=branch_method,
             split_method=split_method,
             workspace_width=workspace_width,
+            x_obs_idx=x_obs_idx,
+            y_obs_idx=y_obs_idx,
             rlds_logger=rlds_logger,
+            image_keys=image_keys,
             kwargs=kwargs,
         )
+    
     else:
         raise ValueError(f"Unsupported replay_buffer_type: {type}")
 
