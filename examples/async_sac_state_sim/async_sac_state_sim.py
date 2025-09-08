@@ -214,9 +214,9 @@ def learner(rng, agent: SACAgent, replay_buffer, replay_iterator):
         project=FLAGS.exp_name,
         name=FLAGS.run_name,
         description=FLAGS.exp_name or FLAGS.env,
-        wandb_output_dir=FLAGS.wandb_output_dir,
+        # wandb_output_dir=FLAGS.wandb_output_dir,
         debug=FLAGS.debug,
-        offline=FLAGS.wandb_offline,
+        # offline=FLAGS.wandb_offline,
     )
 
     # To track the step in the training loop
@@ -304,8 +304,13 @@ def main(_):
         env = gym.make(FLAGS.env, render_mode="human")
     else:
         env = gym.make(FLAGS.env)
-
-    #if FLAGS.env == "PandaPickCube-v0":
+    
+    if FLAGS.env in {"PandaPickCube-v0", "PandaReachCube-v0", "PandaPickSparseCube-v0", "PandaReachSparseCube-v0"}:
+        x_obs_idx=np.array([0,4])
+        y_obs_idx=np.array([1,5])
+    else:
+        raise NotImplementedError(f"Unknown observation layout for {FLAGS.env}")
+    
     env = gym.wrappers.FlattenObservation(env)
 
     rng, sampling_rng = jax.random.split(rng)
@@ -360,8 +365,8 @@ def main(_):
             starting_branch_count=FLAGS.starting_branch_count,
             workspace_width=FLAGS.workspace_width,
             max_traj_length=FLAGS.max_traj_length,
-            x_obs_idx=np.array([0,4]),
-            y_obs_idx=np.array([1,5]),
+            x_obs_idx=x_obs_idx,
+            y_obs_idx=y_obs_idx,
             preload_rlds_path=FLAGS.preload_rlds_path,
             max_depth=FLAGS.max_depth,
             alpha=FLAGS.alpha,

@@ -34,5 +34,5 @@ register(
 #     entry_point="franka_sim.envs:PandaReachCubeGymEnv",
 #     max_episode_steps=100,
 #     kwargs={"image_obs": True},
-# )
+# ) 
     

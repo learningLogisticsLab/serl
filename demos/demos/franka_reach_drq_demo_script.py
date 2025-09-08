@@ -29,12 +29,12 @@ from tensorflow_datasets import folder_dataset
 #-------------------------------------------------------------------------------------------
 # Flags
 #-------------------------------------------------------------------------------------------
-flags.DEFINE_string("env", "PandaPickCubeVision-v0", "Name of environment.")
+flags.DEFINE_string("env", "PandaReachSparseCube-v0", "Name of environment.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
 flags.DEFINE_integer("max_traj_length", 100, "Maximum length of trajectory.")
 flags.DEFINE_boolean("debug", True, "Debug mode.")  # debug mode will disable wandb logging
 #flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
-flags.DEFINE_string("output_dir", "/data/data/serl/demos/franka_reach_drq_demo_script",
+flags.DEFINE_string("output_dir", "~/serl/demos/franka_reach_drq_demo_script",
                     "Directory to save the output data. This is where the RLDS logs will be saved.")                     
 flags.DEFINE_integer("num_demos", 2, "Number of episodes to log.")
 flags.DEFINE_boolean("enable_envlogger", True, "Enable envlogger.")
@@ -465,7 +465,7 @@ def main(unused_argv):
         # env = SERLObsWrapper(env)
         env = SERLObsWrapper(
             env,
-            target_hw=(128, 128),
+            target_hw=(960, 960),
             img_dtype=np.uint8,   # or np.float32
             normalize=False,      # True if using float32 in [0,1]
         )
