@@ -36,7 +36,7 @@ flags.DEFINE_boolean("debug", True, "Debug mode.")  # debug mode will disable wa
 #flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 flags.DEFINE_string("output_dir", "/data/data/serl/demos/franka_reach_drq_demo_script",
                     "Directory to save the output data. This is where the RLDS logs will be saved.")                     
-flags.DEFINE_integer("num_demos", 2, "Number of episodes to log.")
+flags.DEFINE_integer("num_demos", 1, "Number of episodes to log.")
 flags.DEFINE_boolean("enable_envlogger", True, "Enable envlogger.")
 flags.DEFINE_string("teleop_mode", "keyboard", "Teleoperation mode: 'keyboard' or 'spacemouse'.")
 
@@ -148,102 +148,6 @@ def close_logger_and_env(env):
                 _safe_close(child, f"{label}.{child_name}" if label else child_name)
 
     _safe_close(env, "env")
-
-##############################################################################
-# -----------------------------------------------------------------------------
-# Finalize TFDS metadata so TFDS can load the split without manual edits.
-# -----------------------------------------------------------------------------
-# def finalize_tfds_metadata(builder_dir: str):
-#     """
-#     Make the TFDS builder dir loadable by writing numShards/shardLengths.
-#     Works with new/old TFDS; prints helpful diagnostics if filenames don't match.
-#     """
-#     import os, json, glob, inspect
-#     import tensorflow as tf
-#     import tensorflow_datasets as tfds
-#     try:
-#         from tensorflow_datasets import folder_dataset
-#     except Exception:
-#         from tensorflow_datasets.core import folder_dataset
-
-#     info_path = os.path.join(builder_dir, "dataset_info.json")
-#     if not os.path.exists(info_path):
-#         raise FileNotFoundError(f"Missing dataset_info.json in {builder_dir}")
-
-#     with open(info_path) as f:
-#         info = json.load(f)
-
-#     dataset_name   = info["name"]                       # e.g., PandaPickCubeVision-v0
-#     file_format    = info.get("fileFormat", "tfrecord") # "tfrecord"
-#     # Use the exact template written by the logger
-#     template_str   = info["splits"][0]["filepathTemplate"]
-
-#     # Construct a ShardedFileTemplate object TFDS uses to discover shard files. This object encodes the directory, dataset name, suffix, and the template expression.
-#     template = tfds.core.ShardedFileTemplate(
-#         data_dir=builder_dir,
-#         dataset_name=dataset_name,
-#         filetype_suffix=file_format,
-#         template=template_str,
-#     )
-
-#     # Quick diagnostics so mismatches are obvious
-#     print(f"[finalize] builder_dir: {builder_dir}")
-#     print(f"[finalize] template:    {template_str} (dataset={dataset_name}, suffix={file_format})")
-#     print("[finalize] files found:  ", sorted(glob.glob(os.path.join(builder_dir, f"*.{file_format}*"))))
-
-#     # Attempt the canonical TFDS way: compute per-split shard stats by scanning files that match the template. Different TFDS versions call the directory argument out_dir or data_dir, so it inspects the signature and passes the right name.
-#     try:
-#         sig = inspect.signature(folder_dataset.compute_split_info).parameters
-#         if "out_dir" in sig:
-#             # Compute the split info (num shards, num examples,...). See more at https://www.tensorflow.org/datasets/api_docs/python/tfds/folder_dataset/compute_split_info
-#             split_infos = folder_dataset.compute_split_info(out_dir=builder_dir, filename_template=template)
-#         else:
-#             split_infos = folder_dataset.compute_split_info(data_dir=builder_dir, filename_template=template)
-
-#         sig_w = inspect.signature(folder_dataset.write_metadata).parameters
-#         kwargs = dict(split_infos=split_infos, filename_template=template)
-#         if "out_dir" in sig_w:
-#             kwargs["out_dir"] = builder_dir
-#         else:
-#             kwargs["data_dir"] = builder_dir
-#         if "features" in sig_w:
-#             kwargs["features"] = None
-#         folder_dataset.write_metadata(**kwargs)
-
-#     except ValueError as e:
-#         # Common cause: filenames don’t match the template, or shards not flushed yet.
-#         print(f"[finalize] TFDS compute_split_info failed: {e}")
-#         shard_paths = sorted(glob.glob(os.path.join(builder_dir, f"{dataset_name}-*.{file_format}-*")))
-#         if not shard_paths:
-#             # last resort: any .tfrecord* under the dir
-#             shard_paths = sorted(glob.glob(os.path.join(builder_dir, f"*.{file_format}*")))
-#         if not shard_paths:
-#             raise ValueError(
-#                 f"No {file_format} shards found in {builder_dir}. "
-#                 f"Expected filenames like '{dataset_name}-train.{file_format}-00000' "
-#                 f"per template '{template_str}'."
-#             ) from e
-
-#         # Count records per shard and patch dataset_info.json automatically
-#         shard_lengths = []
-#         for p in shard_paths:
-#             n = sum(1 for _ in tf.data.TFRecordDataset(p))
-#             shard_lengths.append(n)
-
-#         # Write lengths for each split that uses the template (here, 'train')
-#         for s in info["splits"]:
-#             # Only add lengths for splits that use this file template
-#             if s.get("filepathTemplate") == template_str:
-#                 s["numShards"] = len(shard_paths)
-#                 s["shardLengths"] = shard_lengths
-
-#         with open(info_path, "w") as f:
-#             json.dump(info, f, indent=2)
-#         print(f"[finalize] wrote shardLengths={shard_lengths} into {info_path}")
-
-#     # Sanity
-#     b = tfds.builder_from_directory(builder_dir)
-#     print("[finalize] splits:", {k: v.num_examples for k, v in b.info.splits.items()})
 
 def finalize_tfds_metadata_beamless(builder_dir: str):
     """
@@ -462,7 +366,6 @@ def main(unused_argv):
         env = gym.wrappers.FlattenObservation(env)
 
     if FLAGS.env == "PandaPickCubeVision-v0":
-        # env = SERLObsWrapper(env)
         env = SERLObsWrapper(
             env,
             target_hw=(128, 128),
@@ -473,6 +376,7 @@ def main(unused_argv):
 
     logging.info(f'Done creating {FLAGS.env} environment.')
 
+    # Set camera to front view if viewer is available
     if hasattr(env.unwrapped, '_viewer'):
         viewer = set_front_cam_view(env)
         if viewer:
@@ -487,6 +391,7 @@ def main(unused_argv):
 
         dataset_dir = ensure_dir_exists()
 
+        # Will save as many episodes as possible into files of 200MB each by default.
         env = AutoOXEEnvLogger(
             env=env,
             dataset_name=FLAGS.env,
@@ -497,63 +402,65 @@ def main(unused_argv):
 
     #--- LOOP DEMOS/EPISODES ---
     # Loop through the number of demos specified by the user to record demonstrations
-    for i in range(FLAGS.num_demos):
+    try:
+        for i in range(FLAGS.num_demos):
 
-        # Log custom metadata during new episode: language embeddings randomly.
-        if FLAGS.enable_envlogger:
-            # The "language_embedding" is a standard field used in robotics datasets (like the OXE format that envlogger creates) to store a numerical representation of a natural language instruction for an episode.
-            # How to Reconcile it with 5 Random Numbers: The five random numbers are just placeholder data. This script is a demonstration and doesn't involve a real language model.
-            env.set_episode_metadata({
-                "language_embedding": np.random.random((5,)).astype(np.float32)
-            })
-            env.set_step_metadata({"timestamp": time.time()})
-
-        logging.info('episode %r', i)
-        
-        # Start a new episode
-        env.reset()
-        terminated = False
-        truncated = False
-
-        step = 0
-
-        # Termination occurs when the hand reaches the target or the maximum trajectory length is reached
-        while not (terminated or truncated):          
-            
-            # Get action from the demo function
-            action = get_kb_demo_action(env)            
-
-            # example to log custom step metadata
+            # Log custom metadata during new episode: language embeddings randomly.
             if FLAGS.enable_envlogger:
-               env.set_step_metadata({"timestamp": np.float32(time.time())})
+                # The "language_embedding" is a standard field used in robotics datasets (like the OXE format that envlogger creates) to store a numerical representation of a natural language instruction for an episode.
+                # How to Reconcile it with 5 Random Numbers: The five random numbers are just placeholder data. This script is a demonstration and doesn't involve a real language model.
+                env.set_episode_metadata({
+                    "language_embedding": np.random.random((5,)).astype(np.float32)
+                })
+                env.set_step_metadata({"timestamp": time.time()})
 
-            return_step = env.step(action)
+            logging.info('episode %r', i)
+            
+            # Start a new episode
+            env.reset()
+            terminated = False
+            truncated = False
 
-            # NOTE: to handle gym.Env.step() return value change in gym 0.26
-            if len(return_step) == 5:
-                obs, reward, terminated, truncated, info = return_step
-            else:
-                obs, reward, terminated, info = return_step
-                truncated = False
+            step = 0
 
-            print(f" step: {step}", f"reward: {reward:.3f}\n")
-            step += 1
+            # Termination occurs when the hand reaches the target or the maximum trajectory length is reached
+            while not (terminated or truncated):          
+                
+                # Get action from the demo function
+                action = get_kb_demo_action(env)            
 
-    logging.info('Done recording %r demos.', FLAGS.num_demos)
+                # example to log custom step metadata
+                if FLAGS.enable_envlogger:
+                    env.set_step_metadata({"timestamp": np.float32(time.time())})
 
-    # Finalize TFDS metadata so SERL/TFDS can load the split
-    if FLAGS.enable_envlogger and dataset_dir is not None:
+                return_step = env.step(action)
 
-        # Close the environment to flush/write data. AutoOXEEnvLogger implements dm_env.close() 
-        # which flushes data to disk. This is important to ensure all data is written before finalizing metadata.
-        # If you skip this step, some data may not be written and the dataset may be incomplete.
-        logging.info("Closing environment to flush data to disk...")
+                # NOTE: to handle gym.Env.step() return value change in gym 0.26
+                if len(return_step) == 5:
+                    obs, reward, terminated, truncated, info = return_step
+                else:
+                    obs, reward, terminated, info = return_step
+                    truncated = False
 
-        # closes logger(s) + dm_env + gym + viewer
-        close_logger_and_env(env)                      
+                print(f" step: {step}", f"reward: {reward:.3f}\n")
+                step += 1
 
-        # Scan files and write metadata
-        finalize_tfds_metadata_beamless(dataset_dir)
+        logging.info('Done recording %r demos.', FLAGS.num_demos)
+    
+    finally:
+        # Finalize TFDS metadata so SERL/TFDS can load the split
+        if FLAGS.enable_envlogger and dataset_dir is not None:
+
+            # Close the environment to flush/write data. AutoOXEEnvLogger implements dm_env.close() 
+            # which flushes data to disk. This is important to ensure all data is written before finalizing metadata.
+            # If you skip this step, some data may not be written and the dataset may be incomplete.
+            logging.info("Closing environment to flush data to disk...")
+
+            # closes logger(s) + dm_env + gym + viewer
+            close_logger_and_env(env)                      
+
+            # Scan files and write metadata
+            finalize_tfds_metadata_beamless(dataset_dir)
 
     # Note: async_drq_sim will read from the dataset_dir you printed above.
 

@@ -38,7 +38,7 @@ import franka_sim
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string("env", "PandaPickCubeVision-v0", "Name of environment.")
+flags.DEFINE_string("env", "PandaReachSparseCubeGymEnv-v0", "Name of environment.")
 flags.DEFINE_string("agent", "drq", "Name of agent.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
 flags.DEFINE_integer("max_traj_length", 1000, "Maximum length of trajectory.")
@@ -108,7 +108,7 @@ def actor(agent: DrQAgent, data_store, env, sampling_rng):
     client.recv_network_callback(update_params)
 
     eval_env = gym.make(FLAGS.env)
-    if FLAGS.env == "PandaPickCubeVision-v0":
+    if FLAGS.env == "PandaReachSparseCubeGymEnv-v0":
         eval_env = SERLObsWrapper(eval_env)
         eval_env = ChunkingWrapper(eval_env, obs_horizon=1, act_exec_horizon=None)
     eval_env = RecordEpisodeStatistics(eval_env)
@@ -327,7 +327,7 @@ def main(_):
 
     if FLAGS.env == "PandaPickCube-v0":
         env = gym.wrappers.FlattenObservation(env)
-    if FLAGS.env == "PandaPickCubeVision-v0":
+    if FLAGS.env == "PandaReachSparseCubeGymEnv-v0":
         env = SERLObsWrapper(env)
         env = ChunkingWrapper(env, obs_horizon=1, act_exec_horizon=None)
 
@@ -370,6 +370,17 @@ def main(_):
                 # NOTE: Create your own custom data transform function here if you
                 # are loading this via with --preload_rlds_path with tf rlds data
                 # This default does nothing
+                # See:  https://colab.research.google.com/github/google-research/rlds/blob/main/rlds/examples/rlds_tutorial.ipynb#scrollTo=X1KXM8IGecRO
+                #       https://www.tensorflow.org/guide/data 
+                #       https://github.com/google-research/rlds/blob/main/docs/transformations.md
+                #       Batch: rlds.transformations.batch (https://colab.research.google.com/github/google-research/rlds/blob/main/rlds/examples/rlds_tutorial.ipynb#scrollTo=TGT3YfzFOrBm)
+                #       Reverb: rlds.transformations.pattern_map (https://colab.research.google.com/github/google-research/rlds/blob/main/rlds/examples/rlds_dataset_patterns.ipynb )
+                #       Nested data set manipulation: rlds.transformations.episode_length/.sum_dataset/.final_step/.map_nested_steps
+                #       Concatenation: rlds.transformations.concatenate / .concat_if_terminal (https://colab.research.google.com/github/google-research/rlds/blob/main/rlds/examples/rlds_examples.ipynb#scrollTo=pWNhxwJzOUJv)
+                #       Stats: rlds.transformations.mean_and_std (https://colab.research.google.com/github/google-research/rlds/blob/main/rlds/examples/rlds_tutorial.ipynb#scrollTo=Z0TITfo_4oZr)
+                #       Truncation: rlds.transformations.truncate_after_condition 
+                #       Alignment: rlds.transformations.shift_keys
+                #       Zero Init: rlds.transformations.zeros_from_spec
                 return data
 
             demo_buffer = make_replay_buffer(
@@ -377,7 +388,7 @@ def main(_):
                 capacity=FLAGS.replay_buffer_capacity,
                 type="memory_efficient_replay_buffer",
                 image_keys=image_keys,
-                preload_rlds_path=FLAGS.preload_rlds_path,
+                preload_rlds_path=FLAGS.preload_rlds_path, # Folder that contains the dataset_info.json
                 preload_data_transform=preload_data_transform,
             )
 
