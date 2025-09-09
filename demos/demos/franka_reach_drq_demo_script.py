@@ -31,12 +31,12 @@ from tensorflow_datasets import folder_dataset
 #-------------------------------------------------------------------------------------------
 flags.DEFINE_string("env", "PandaReachSparseCube-v0", "Name of environment.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
-flags.DEFINE_integer("max_traj_length", 100, "Maximum length of trajectory.")
+flags.DEFINE_integer("max_traj_length", 120, "Maximum length of trajectory.")
 flags.DEFINE_boolean("debug", True, "Debug mode.")  # debug mode will disable wandb logging
 #flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
-flags.DEFINE_string("output_dir", "~/serl/demos/franka_reach_drq_demo_script",
+flags.DEFINE_string("output_dir", "/data/data/serl/demos/franka_reach_drq_demo_script",
                     "Directory to save the output data. This is where the RLDS logs will be saved.")                     
-flags.DEFINE_integer("num_demos", 1, "Number of episodes to log.")
+flags.DEFINE_integer("num_demos", 2, "Number of episodes to log.")
 flags.DEFINE_boolean("enable_envlogger", True, "Enable envlogger.")
 flags.DEFINE_string("teleop_mode", "keyboard", "Teleoperation mode: 'keyboard' or 'spacemouse'.")
 
@@ -365,7 +365,7 @@ def main(unused_argv):
     if FLAGS.env == "PandaPickCube-v0":
         env = gym.wrappers.FlattenObservation(env)
 
-    if FLAGS.env == "PandaPickCubeVision-v0":
+    if FLAGS.env == "PandaReachSparseCube-v0":
         env = SERLObsWrapper(
             env,
             target_hw=(960, 960),

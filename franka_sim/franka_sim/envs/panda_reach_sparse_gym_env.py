@@ -36,7 +36,7 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
         time_limit: float = 10.0,
         render_spec: GymRenderingSpec = GymRenderingSpec(),
         render_mode: Literal["rgb_array", "human"] = "rgb_array",
-        image_obs: bool = False,
+        image_obs: bool = True,
         demo: str = "None",
     ):
         self._action_scale = action_scale
