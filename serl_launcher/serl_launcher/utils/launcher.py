@@ -286,6 +286,13 @@ def make_replay_buffer(
     else:
         raise ValueError(f"Unsupported replay_buffer_type: {type}")
 
+    # Load RLDS or oxe_envlogger recroded data with tfds.builder_from_directory. 
+    #   Choose number of episodes by passing split="train[:N%]" or split="test[:N%]"
+    #   or ds = tfds.builder_from_directory(builder_dir).as_dataset(split="train").take(5)
+    #   See more details: https://www.tensorflow.org/datasets/splits
+    #
+    # It's also possible to filter specirfic episodes, i.e. by time:
+    # ds = ds.filter(lambda ep: tf.strings.regex_full_match(ep['some/session_id'], "20250821_222412"))
     if preload_rlds_path:
         print(f" - Preloaded {preload_rlds_path} to replay buffer")
         dataset = tfds.builder_from_directory(preload_rlds_path).as_dataset(split="all")
