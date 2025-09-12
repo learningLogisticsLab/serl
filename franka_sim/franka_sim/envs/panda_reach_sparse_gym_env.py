@@ -214,7 +214,10 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
             self._data.ctrl[self._panda_ctrl_ids] = tau
             mujoco.mj_step(self._model, self._data)
 
+        # Compute observation. 
         obs = self._compute_observation()
+
+        # For sparse reward we return 1 if the task is achieved, else 0.
         rew = self._compute_reward()
 
         # # For demo reach environment, finger  --- THIS SHOULD NEVER BE MERGED TO OTHER BRANCHES AFFECTING REGULAR USE OF ENVIRONMENTS. ONLY FOR DEMOS.
@@ -224,7 +227,10 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
         #         terminated = True
         # else:
             # Check if the time limit is exceeded.
-        terminated = (rew >= 0.85)
+
+        # Episode is terminated if the reward is 1.0 (i.e. the task is achieved).
+        terminated = (rew == 1.0)
+        
         if self._time_limit is not None:
             terminated = terminated or self.time_limit_exceeded()
 
@@ -276,10 +282,12 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
         dist = np.linalg.norm(block_pos - tcp_pos)
 
         # Distance-based reward. Note at norm of 0.015, reward will be 0.5
-        r_close = np.exp(-20 * dist)
-        r_close = np.clip(r_close, 0.0, 1.0)
+        if dist < 0.015:
+            reward = 1.0
+        else:
+            reward = 0.0
     
-        return (r_close > 0.85)
+        return reward
 
 
 if __name__ == "__main__":

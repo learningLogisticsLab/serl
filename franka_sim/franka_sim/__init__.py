@@ -27,7 +27,7 @@ register(
 register(
     id="PandaReachSparseCube-v0",
     entry_point="franka_sim.envs:PandaReachSparseCubeGymEnv",
-    max_episode_steps=120,
+    max_episode_steps=200,
 )
 # register(
 #     id="PandaReachCubeVision-v0",
