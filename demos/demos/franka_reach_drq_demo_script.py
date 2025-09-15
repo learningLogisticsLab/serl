@@ -31,12 +31,12 @@ from tensorflow_datasets import folder_dataset
 #-------------------------------------------------------------------------------------------
 flags.DEFINE_string("env", "PandaReachSparseCube-v0", "Name of environment.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
-flags.DEFINE_integer("max_traj_length", 120, "Maximum length of trajectory.")
+flags.DEFINE_integer("max_traj_length", 200, "Maximum length of trajectory.")
 flags.DEFINE_boolean("debug", True, "Debug mode.")  # debug mode will disable wandb logging
 #flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 flags.DEFINE_string("output_dir", "/data/data/serl/demos/franka_reach_drq_demo_script",
                     "Directory to save the output data. This is where the RLDS logs will be saved.")                     
-flags.DEFINE_integer("num_demos", 2, "Number of episodes to log.")
+flags.DEFINE_integer("num_demos", 10, "Number of episodes to log.")
 flags.DEFINE_boolean("enable_envlogger", True, "Enable envlogger.")
 flags.DEFINE_string("teleop_mode", "keyboard", "Teleoperation mode: 'keyboard' or 'spacemouse'.")
 
@@ -164,7 +164,7 @@ def finalize_tfds_metadata_beamless(builder_dir: str):
     with open(info_path) as f:
         info = json.load(f)
 
-    ds_name    = info["name"]                    # e.g. "PandaPickCubeVision-v0"
+    ds_name    = info["name"]                    # e.g. "PandaReachSparseCube-v0"
     file_fmt   = info.get("fileFormat", "tfrecord")
     tmpl_str   = info["splits"][0]["filepathTemplate"]
 
@@ -201,11 +201,11 @@ def ensure_dir_exists():
     For oxe_envlogger + RLDS compatibility, data must be written in the following format:
     /data/data/serl/demos/franka_reach_drq_demo_script/
     └── session_20250821_222412/
-        └── PandaPickCubeVision-v0/
+        └── PandaReachSparseCube-v0/
             └── 0.1.0/
                 dataset_info.json
                 features.json
-                PandaPickCubeVision-v0-train.tfrecord-00000-of-00001
+                PandaReachSparseCube-v0-train.tfrecord-00000-of-00001
 
     We can have a base path with customized sessions inside. 
     Inside each session we have: env-version-files
@@ -262,7 +262,7 @@ def getKey(settings):
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
     return key
 
-def get_kb_demo_action(env,speed=0.1):
+def get_kb_demo_action(env,speed=0.05):
     """
     Reads keyboard input and maps it to a 3D action vector for robot control or camera action. 
     TODO: currently can only read one key at a time. Needs to be extended to read multiple keys to handle both.
@@ -368,7 +368,7 @@ def main(unused_argv):
     if FLAGS.env == "PandaReachSparseCube-v0":
         env = SERLObsWrapper(
             env,
-            target_hw=(960, 960),
+            target_hw=(128, 128),
             img_dtype=np.uint8,   # or np.float32
             normalize=False,      # True if using float32 in [0,1]
         )
