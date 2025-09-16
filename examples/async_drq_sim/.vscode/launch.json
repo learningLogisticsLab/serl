@@ -12,17 +12,17 @@
             // Command-line arguments matching run_learner.sh
             "args": [
                 "--render",
-                "--env", "PandaReachSparseCubeGymEnv-v0",               // Environment to use
+                "--env", "PandaReachSparseCube-v0",         // Environment to use
                 "--agent", "drq",                           // Agent type (drq or sac)
-                "--exp_name", "PandaPickCubeVision-v0_sparse_001", // Experiment name for wandb logging
+                "--exp_name", "PandaReachCubeVision-v0_001", // Experiment name for wandb logging
                 "--max_traj_length", "100",                 // Max episode length/ Max episode length                  
                 "--seed", "42",                             // Random seed for reproducibility
-                // "--save_model",                             // Save model checkpoints
+                // "--save_model",                          // Save model checkpoints
                 "--batch_size", "256",                      // Training batch size
-                "--critic_actor_ratio", "8",                // Critic-to-actor update ratio                
-                "--max_steps", "50_000 ",                   // Maximum training steps
+                "--critic_actor_ratio", "4",                // Critic-to-actor update ratio                
+                "--max_steps", "100_000 ",                   // Maximum training steps
                 "--replay_buffer_capacity", "200_000",      // Replay buffer capacity
-                "--random_steps", "300",                    // Number of random steps at beginning
+                "--random_steps", "0",                    // Number of random steps at beginning
                 "--training_starts", "300",                 // Start training after buffer has this many samples
                 "--steps_per_update", "30",                 // Number of env steps per update
                 "--learner",                                // REQUIRED: Indicates this is a learner instance
@@ -39,7 +39,7 @@
                 // "--load_demos",                             // Load demo dataset
                 // "--demo_dir",  "/data/data/serl/demos",
                 // "--file_name", "data_franka_reach_random_5_2.npz", // Name of the demo file to load
-                "--preload_rlds_path", "/data/data/serl/demos/franka_reach_drq_demo_script/session_20250902_105400_num_demos_2/PandaPickCubeVision-v0/0.1.0", // Preload RLDS dataset for faster loading
+                "--preload_rlds_path", "/media/bison/hdd/data/serl/demos/franka_reach_drq_demo_script/2_demos_session_20250916_100650/PandaReachSparseCube-v0/0.1.0", // Preload RLDS dataset for faster loading
 
                 // Dissasociated Fractals
                 // "--branch_method", "disassociated",   // branch method type
@@ -73,7 +73,7 @@
             // Command-line arguments matching run_actor.sh
             "args": [
                 "--render",
-                "--env", "PandaReachSparseCubeGymEnv-v0",               // Environment to use
+                "--env", "PandaReachSparseCube-v0",         // Environment to use
                 "--agent", "drq",                           // Agent type (drq or sac)
                 "--exp_name", "PandaPickCubeVision-v0_sparse_001", // Experiment name for wandb logging
                 "--max_traj_length", "100",                 // Max episode length/ Max episode length                  
@@ -100,7 +100,7 @@
                 // "--load_demos",                             // Load demo dataset
                 // "--demo_dir",  "/data/data/serl/demos",
                 // "--file_name", "data_franka_reach_random_5_2.npz", // Name of the demo file to load
-                "--preload_rlds_path", "/data/data/serl/demos/franka_reach_drq_demo_script/session_20250902_105400_num_demos_2/PandaPickCubeVision-v0/0.1.0", // Preload RLDS dataset for faster loading
+                "--preload_rlds_path", "/media/bison/hdd/data/serl/demos/franka_reach_drq_demo_script/2_demos_session_20250916_100650/PandaReachSparseCube-v0/0.1.0", // Preload RLDS dataset for faster loading
 
                 // Dissasociated Fractals
                 // "--branch_method", "disassociated",   // branch method type
