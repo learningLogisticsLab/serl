@@ -36,7 +36,7 @@ flags.DEFINE_boolean("debug", True, "Debug mode.")  # debug mode will disable wa
 #flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 flags.DEFINE_string("output_dir", "/data/data/serl/demos/franka_reach_drq_demo_script",
                     "Directory to save the output data. This is where the RLDS logs will be saved.")                     
-flags.DEFINE_integer("num_demos", 10, "Number of episodes to log.")
+flags.DEFINE_integer("num_demos", 2, "Number of episodes to log.")
 flags.DEFINE_boolean("enable_envlogger", True, "Enable envlogger.")
 flags.DEFINE_string("teleop_mode", "keyboard", "Teleoperation mode: 'keyboard' or 'spacemouse'.")
 
@@ -219,7 +219,7 @@ def ensure_dir_exists():
     # Customize the path
     root = FLAGS.output_dir 
     session = datetime.now().strftime("session_%Y%m%d_%H%M%S")
-    session_root = os.path.join(root, f"{session}_num_demos_{FLAGS.num_demos}")
+    session_root = os.path.join(root, f"{FLAGS.num_demos}_demos_{session}")
 
     # Dataset details
     dataset_name = FLAGS.env
@@ -262,7 +262,7 @@ def getKey(settings):
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
     return key
 
-def get_kb_demo_action(env,speed=0.05):
+def get_kb_demo_action(env,speed=0.075):
     """
     Reads keyboard input and maps it to a 3D action vector for robot control or camera action. 
     TODO: currently can only read one key at a time. Needs to be extended to read multiple keys to handle both.
