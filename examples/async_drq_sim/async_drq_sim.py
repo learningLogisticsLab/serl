@@ -350,7 +350,7 @@ def main(_):
     else:
         raise NotImplementedError(f"Unknown observation layout for {FLAGS.env}")
     
-    if "Vision" in FLAGS.env:
+    if FLAGS.env == "PandaReachSparseCube-v0":
         env = SERLObsWrapper(env)
         env = ChunkingWrapper(env, obs_horizon=1, act_exec_horizon=None)
     else:
