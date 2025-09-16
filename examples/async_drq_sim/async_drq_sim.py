@@ -92,11 +92,6 @@ flags.DEFINE_boolean(
 flags.DEFINE_string("log_rlds_path", None, "Path to save RLDS logs.")
 flags.DEFINE_string("preload_rlds_path", None, "Path to preload RLDS data.")
 
-# Load demonstation data
-flags.DEFINE_boolean("load_demos", False, "Whether to load demo dataset.")
-flags.DEFINE_string("demo_dir", "/data/data/serl/demos", "Path to demo dataset.")
-flags.DEFINE_string("file_name", "data_franka_reach_random_20.npz", "Name of the demo file to load.")
-
 devices = jax.local_devices()
 num_devices = len(devices)
 sharding = jax.sharding.PositionalSharding(devices)
