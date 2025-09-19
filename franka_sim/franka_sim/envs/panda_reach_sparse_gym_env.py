@@ -130,8 +130,8 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
             )
 
         self.action_space = gym.spaces.Box(
-            low=np.asarray([-1.0, -1.0, -1.0]),
-            high=np.asarray([1.0, 1.0, 1.0]),
+            low=np.asarray([-1.0, -1.0, -1.0, -1.0]),
+            high=np.asarray([1.0, 1.0, 1.0, 1.0]),
             dtype=np.float32,
         )
 
@@ -142,8 +142,8 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
         self._viewer = MujocoRenderer(
             self.model,
             self.data,
-            width=960,
-            height=960,
+            width=128,
+            height=128,
             camera_id=0
         )
         self._viewer.render(self.render_mode)
