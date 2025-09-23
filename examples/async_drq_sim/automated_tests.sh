@@ -5,13 +5,14 @@ SEEDS=$1
 TEST="async_sac_state_sim.py"
 CONDA_ENV="serl"
 ENV="PandaReachSparseCube-v0"
-MAX_STEPS=1000
-TRAINING_STARTS=0
-RANDOM_STEPS=0
+MAX_STEPS=1000000
+TRAINING_STARTS=1000
+RANDOM_STEPS=1000
+BATCH_SIZE=128
 EXP_NAME="FIRST-TESTS-$ENV"
 REPLAY_BUFFER_TYPE="fractal_symmetry_replay_buffer"
 PRELOAD_RLDS="/data/data/serl/demos/franka_reach_drq_demo_script/10_demos_session_202500914_213515/PandaReachSparseCube-v0/0.1.0"
-BASE_ARGS="--env $ENV --exp_name $EXP_NAME --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS --preload_rlds_path $PRELOAD_RLDS --encoder_type resnet-pretrained"
+BASE_ARGS="--env $ENV --exp_name $EXP_NAME --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS --batch_size $BATCH_SIZE --preload_rlds_path $PRELOAD_RLDS --encoder_type resnet-pretrained"
 ARGS=""
 
 function run_test {
@@ -41,7 +42,7 @@ function run_test {
 }
 
 # BASELINE TESTING
-for replay_buffer_capacity in 200000
+for replay_buffer_capacity in 1000000
 do
     ARGS="--run_name baseline --replay_buffer_type memory_efficient_replay_buffer --replay_buffer_capacity $replay_buffer_capacity"
     run_test
@@ -52,7 +53,7 @@ for starting_branch_count in 1 27
 do
     for workspace_width in 0.5
     do
-        for replay_buffer_capacity in 200000
+        for replay_buffer_capacity in 1000000
         do
             ARGS="--run_name constant-$starting_branch_count^1 --replay_buffer_type $REPLAY_BUFFER_TYPE --replay_buffer_capacity $replay_buffer_capacity --workspace_width $workspace_width --branch_method 'constant' --starting_branch_count $starting_branch_count"
             run_test
