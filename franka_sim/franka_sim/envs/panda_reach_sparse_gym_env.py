@@ -130,8 +130,8 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
             )
 
         self.action_space = gym.spaces.Box(
-            low=np.asarray([-1.0, -1.0, -1.0]),
-            high=np.asarray([1.0, 1.0, 1.0]),
+            low=np.asarray([-1.0, -1.0, -1.0, -1.0]),
+            high=np.asarray([1.0, 1.0, 1.0, 1.0]),
             dtype=np.float32,
         )
 
@@ -189,7 +189,7 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
             truncated: bool,
             info: dict[str, Any]
         """
-        x, y, z, _ = action
+        x, y, z, grasp = action
 
         # Set the mocap position.
         pos = self._data.mocap_pos[0].copy()
@@ -198,7 +198,10 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
         self._data.mocap_pos[0] = npos
 
         # Set gripper grasp.
-        self._data.ctrl[self._gripper_ctrl_id] = 0  # Fully open position
+        g = self._data.ctrl[self._gripper_ctrl_id] / 255
+        dg = grasp * self._action_scale[1]
+        ng = np.clip(g + dg, 0.0, 1.0)
+        self._data.ctrl[self._gripper_ctrl_id] = ng * 255
 
         for _ in range(self._n_substeps):
             tau = opspace(
@@ -295,6 +298,6 @@ if __name__ == "__main__":
     env = PandaReachSparseCubeGymEnv(render_mode="human")
     env.reset()
     for i in range(5000):
-        env.step(np.random.uniform(-1, 1, 3))
+        env.step(np.random.uniform(-1, 1, 4))
         env.render()
     env.close()

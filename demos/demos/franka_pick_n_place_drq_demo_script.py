@@ -29,7 +29,7 @@ from tensorflow_datasets import folder_dataset
 #-------------------------------------------------------------------------------------------
 # Flags
 #-------------------------------------------------------------------------------------------
-flags.DEFINE_string("env", "PandaReachSparseCube-v0", "Name of environment.")
+flags.DEFINE_string("env", "PandaPickCubeVision-v0", "Name of environment.")
 flags.DEFINE_string("exp_name", None, "Name of the experiment for wandb logging.")
 flags.DEFINE_integer("max_traj_length", 200, "Maximum length of trajectory.")
 flags.DEFINE_boolean("debug", True, "Debug mode.")  # debug mode will disable wandb logging
@@ -57,6 +57,9 @@ moveBindings = {
     'o':(0,0,0,-1),
     'm':(0,0,1,0),
     '.':(0,0,-1,0),
+    'g':(0,0,0,0.1),  # open gripper
+    'h':(0,0,0,-0.1), # close gripper
+    
         }
 
 # Extend bindings to include camera controls
@@ -68,6 +71,43 @@ camBindings = {
     'q': ("distance", -0.1),# zoom in
     'e': ("distance", 0.1), # zoom out
 }
+
+def activate_weld(env, constraint_name="grasp_weld"):
+    """
+    Activate a weld constraint during pick portion of a demo
+    :param env: The environment containing the model
+    :param constraint_name: The name of the weld constraint to activate
+    :return: True if the weld was successfully activated, False if the constraint was not found
+    """
+
+    try:
+        # Activate the weld constraint
+        env.unwrapped.model.eq(constraint_name).active = 1     
+        print("Activated weld")   
+        return True
+    
+    except KeyError:
+        print(f"Warning: Constraint '{constraint_name}' not found")
+        return False
+
+def deactivate_weld(env, constraint_name="grasp_weld"):
+    """
+    Deactivate a weld constraint during place portion of a demo
+    :param env: The environment containing the model
+    :param constraint_name: The name of the weld constraint to deactivate
+    :return: True if the weld was successfully deactivated, False if the constraint was not
+    found
+    """ 
+    
+    try:
+        # Deactivate the weld constraint
+        env.unwrapped.model.eq(constraint_name).active = 0    
+        print("Deactivated weld")    
+        return True
+    
+    except KeyError:
+        print(f"Warning: Constraint '{constraint_name}' not found")
+        return False
 
 def update_camera(viewer,key):
     """
@@ -366,7 +406,7 @@ def main(unused_argv):
     if FLAGS.env == "PandaPickCube-v0":
         env = gym.wrappers.FlattenObservation(env)
 
-    if FLAGS.env == "PandaReachSparseCube-v0":
+    if FLAGS.env == "PandaReachSparseCube-v0" or FLAGS.env == "PandaPickCubeVision-v0":
         env = SERLObsWrapper(
             env,
             target_hw=(128, 128),
@@ -459,8 +499,8 @@ def main(unused_argv):
 
             # closes logger(s) + dm_env + gym + viewer
             # env.unwrapped.unwrapped.unwrapped.close() # close mujoco viewer
-            # env.env.env.env.close()            
-            close_logger_and_env(env)                      
+            # env.env.env.env.close()
+            close_logger_and_env(env)    
 
             # Scan files and write metadata
             finalize_tfds_metadata_beamless(dataset_dir)
