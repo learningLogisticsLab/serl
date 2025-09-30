@@ -144,8 +144,8 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
         self._viewer = MujocoRenderer(
             self.model,
             self.data,
-            width=128,
-            height=128,
+            width=960,
+            height=960,
             camera_id=0
         )
         self._viewer.render(self.render_mode)

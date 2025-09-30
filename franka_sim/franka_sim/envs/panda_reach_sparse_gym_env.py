@@ -189,7 +189,7 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
             truncated: bool,
             info: dict[str, Any]
         """
-        x, y, z, grasp = action
+        x, y, z, _ = action
 
         # Set the mocap position.
         pos = self._data.mocap_pos[0].copy()
@@ -198,10 +198,11 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
         self._data.mocap_pos[0] = npos
 
         # Set gripper grasp.
-        g = self._data.ctrl[self._gripper_ctrl_id] / 255
-        dg = grasp * self._action_scale[1]
-        ng = np.clip(g + dg, 0.0, 1.0)
-        self._data.ctrl[self._gripper_ctrl_id] = ng * 255
+        self._data.ctrl[self._gripper_ctrl_id] = 0  # Keep gripper closed.
+        # g = self._data.ctrl[self._gripper_ctrl_id] / 255
+        # dg = grasp * self._action_scale[1]
+        # ng = np.clip(g + dg, 0.0, 1.0)
+        # self._data.ctrl[self._gripper_ctrl_id] = ng * 255
 
         for _ in range(self._n_substeps):
             tau = opspace(
