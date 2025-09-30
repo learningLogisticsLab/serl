@@ -142,8 +142,8 @@ class PandaReachSparseCubeGymEnv(MujocoGymEnv):
         self._viewer = MujocoRenderer(
             self.model,
             self.data,
-            width=960,
-            height=960,
+            width=128,
+            height=128,
             camera_id=0
         )
         self._viewer.render(self.render_mode)
