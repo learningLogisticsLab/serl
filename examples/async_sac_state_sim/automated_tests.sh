@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SEED=$1
+SEEDS=$1
 WANDB_OUTPUT_DIR=~/wandb_logs
 TEST="async_sac_state_sim.py"
 CONDA_ENV="serl"
@@ -9,61 +9,69 @@ MAX_STEPS=25000
 TRAINING_STARTS=1000
 RANDOM_STEPS=1000
 CRITIC_ACTOR_RATIO=8
-EXP_NAME="SCALING-REPLAY-BUFFER-CAPACITY-WITH-BRANCHES-$ENV"
+EXP_NAME="GENERAL-RETESTING-$ENV"
 REPLAY_BUFFER_TYPE="fractal_symmetry_replay_buffer"
 
-BASE_ARGS="--env $ENV --exp_name $EXP_NAME --wandb_output_dir $WANDB_OUTPUT_DIR --wandb_offline --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS --critic_actor_ratio $CRITIC_ACTOR_RATIO --seed $SEED"
+BASE_ARGS="--env $ENV --exp_name $EXP_NAME --wandb_output_dir $WANDB_OUTPUT_DIR --training_starts $TRAINING_STARTS --random_steps $RANDOM_STEPS"
 ARGS=""
 
 function run_test {
 
-    OPEN_PORTS=$( comm -23 <(seq 49152 65535 | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n 2 )
-    PORTS=( $OPEN_PORTS )
-    PORT_NUMBER=${PORTS[0]}
-    BROADCAST_PORT=${PORTS[1]}
+    for seed in $(seq 1 1 $SEEDS)
+    do
+        # OPEN_PORTS=$( comm -23 <(seq 49152 65535 | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n 2 )
+        # PORTS=( $OPEN_PORTS )
+        # PORT_NUMBER=${PORTS[0]}
+        # BROADCAST_PORT=${PORTS[1]}
 
-    ARGS+=" --port_number $PORT_NUMBER --broadcast_port $BROADCAST_PORT"
+        # ARGS+=" --port_number $PORT_NUMBER --broadcast_port $BROADCAST_PORT"
 
-    echo "Running constant with args: $ARGS"
-    tmux respawn-pane -k -t serl_session:$SEED.1
-    tmux respawn-pane -k -t serl_session:$SEED.2
-    tmux send-keys -t serl_session:$SEED.1 "conda activate $CONDA_ENV && bash automated_tests_helper.sh --actor --max_steps $((MAX_STEPS * 2)) $BASE_ARGS $ARGS" C-m
-    tmux send-keys -t serl_session:$SEED.2 "conda activate $CONDA_ENV && bash automated_tests_helper.sh --learner --max_steps $MAX_STEPS $BASE_ARGS $ARGS" C-m "exit" C-m
+        echo "Running constant with args: $ARGS"
+        tmux respawn-pane -k -t serl_session:0.1
+        tmux respawn-pane -k -t serl_session:0.2
+        tmux send-keys -t serl_session:0.1 "conda activate $CONDA_ENV && bash automated_tests_helper.sh --actor --max_steps 2000000000 --seed $seed $BASE_ARGS $ARGS" C-m
+        tmux send-keys -t serl_session:0.2 "conda activate $CONDA_ENV && bash automated_tests_helper.sh --learner --max_steps $MAX_STEPS --seed $seed $BASE_ARGS $ARGS" C-m "exit" C-m
 
-    # Wait for actor or learner to finish
-    while ! tmux capture-pane -t serl_session:$SEED.2 -p | grep "Pane is dead" > /dev/null || ! tmux capture-pane -t serl_session:$SEED.1 -p | grep "Pane is dead" > /dev/null ! tmux capture-pane -t serl_session:$SEED.2 -p | grep "logout" > /dev/null || ! tmux capture-pane -t serl_session:$SEED.1 -p | grep "logout" > /dev/null; 
-    do 
-        sleep 1
+        # Wait for learner to finish
+        while ! tmux capture-pane -t serl_session:0.2 -p | grep "logout" > /dev/null;
+        do 
+            sleep 1
+        done
+        echo "Finished!"
     done
-    echo "Finished!"
-
 }
 
-# # BASELINE TESTING
-# for batch_size in 256
-# do
-#     for replay_buffer_capacity in 1000 2000 1000000
-#     do
-#         ARGS="--run_name baseline-batch-size-$batch_size-capacity-$replay_buffer_capacity --replay_buffer_type replay_buffer --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity"
-#         run_test
-#     done
-# done
+# BASELINE TESTING
+for CRITIC_ACTOR_RATIO in 8
+do
+    for batch_size in 256 2048
+    do
+        for replay_buffer_capacity in 1000 1000000
+        do
+            ARGS="--run_name baseline --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type replay_buffer --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity"
+            run_test
+        done
+    done
+done
 
-# # CONSTANT TESTING
-# for starting_branch_count in 1 2
-# do
-#     for batch_size in 256
-#     do
-#         for workspace_width in 0.5
-#         do
-#             for replay_buffer_capacity in $(( starting_branch_count * starting_branch_count * TRAINING_STARTS )) $(( starting_branch_count * starting_branch_count * TRAINING_STARTS * 2 )) $(( starting_branch_count * starting_branch_count * TRAINING_STARTS * 1000 ))
-#             do
-#                 ARGS="--run_name constant-$starting_branch_count^1-workspace_width-$workspace_width-batch-size-$batch_size-capacity-$replay_buffer_capacity --replay_buffer_type $REPLAY_BUFFER_TYPE --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity --workspace_width $workspace_width --branch_method 'constant' --starting_branch_count $starting_branch_count"
-#                 run_test
-#             done
-#         done
-#     done
-# done
+# CONSTANT TESTING
+for CRITIC_ACTOR_RATIO in 8
+do
+    for starting_branch_count in 2 8 64
+    do
+        for batch_size in 256
+        do
+            for workspace_width in 10 1 .1
+            do
+                for replay_buffer_capacity in $((1000 * $starting_branch_count * $starting_branch_count)) $((1000000 * $starting_branch_count * $starting_branch_count))
+                do
+                    ARGS="--run_name constant-$starting_branch_count^1 --steps_per_update $steps_per_update --critic_actor_ratio $CRITIC_ACTOR_RATIO --replay_buffer_type $REPLAY_BUFFER_TYPE --batch_size $batch_size --replay_buffer_capacity $replay_buffer_capacity --workspace_width $workspace_width --branch_method 'constant' --starting_branch_count $starting_branch_count"
+                    run_test
+                done
+            done
+        done
+    done
+done
 
 # # FRACTAL TESTING
 # for batch_size in 256
