@@ -17,8 +17,8 @@ fi
 python async_drq_randomized.py "$@" \
     --learner \
     --env $ENV_NAME \
-    --exp_name=serl-peg-insert \
-    --seed 0 \
+    --exp_name="PegInsert-baselines" \
+    --seed 3 \
     --max_steps 25000 \
     --random_steps 1000 \
     --training_starts 200 \
@@ -26,7 +26,8 @@ python async_drq_randomized.py "$@" \
     --batch_size 128 \
     --eval_period 2000 \
     --encoder_type resnet-pretrained \
-    --demo_path peg_insert_30_demos_2025-07-14_22-57-59.pkl\
-    --checkpoint_period 1000 \
-    --checkpoint_path "$CHECKPOINT_DIR" \
+    --demo_path peg_insert_30_demos_2025-10-20_17-40-38.pkl\
+    # --save_model \
+    # --checkpoint_period 1000 \
+    # --checkpoint_path "$CHECKPOINT_DIR" \
     #--debug # wandb is disabled when debug
