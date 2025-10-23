@@ -25,8 +25,9 @@ from serl_launcher.utils.launcher import (
     make_drq_agent,
     make_trainer_config,
     make_wandb_logger,
+    make_replay_buffer
 )
-from serl_launcher.data.data_store import MemoryEfficientReplayBufferDataStore
+# from serl_launcher.data.data_store import MemoryEfficientReplayBufferDataStore
 from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
 from franka_env.envs.relative_env import RelativeFrame
 from franka_env.envs.wrappers import (
@@ -49,7 +50,6 @@ flags.DEFINE_integer("batch_size", 256, "Batch size.")
 flags.DEFINE_integer("critic_actor_ratio", 4, "critic to actor update ratio.")
 
 flags.DEFINE_integer("max_steps", 1000000, "Maximum number of training steps.")
-flags.DEFINE_integer("replay_buffer_capacity", 200000, "Replay buffer capacity.")
 
 flags.DEFINE_integer("random_steps", 300, "Sample random actions for this many steps.")
 flags.DEFINE_integer("training_starts", 300, "Training starts after this step.")
@@ -68,6 +68,13 @@ flags.DEFINE_string("encoder_type", "resnet-pretrained", "Encoder type.")
 flags.DEFINE_string("demo_path", None, "Path to the demo data.")
 flags.DEFINE_integer("checkpoint_period", 0, "Period to save checkpoints.")
 flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
+
+# replay buffer flags
+flags.DEFINE_string("replay_buffer_type", "memory_efficient_replay_buffer", "Which replay buffer to use")
+flags.DEFINE_integer("replay_buffer_capacity", 200000, "Replay buffer capacity.")
+flags.DEFINE_string("branch_method", None, "Method for how many branches to generate")
+flags.DEFINE_float("workspace_width", 0.5, "Workspace width in meters")
+flags.DEFINE_integer("starting_branch_count", None, "Initial number of branches")
 
 flags.DEFINE_integer(
     "eval_checkpoint_step", 0, "evaluate the policy from ckpt at this step"
@@ -353,16 +360,30 @@ def main(_):
 
     if FLAGS.learner:
         sampling_rng = jax.device_put(sampling_rng, device=sharding.replicate())
-        replay_buffer = MemoryEfficientReplayBufferDataStore(
-            env.observation_space,
-            env.action_space,
+        replay_buffer = make_replay_buffer(
+            env,
             capacity=FLAGS.replay_buffer_capacity,
+            rlds_logger_path=FLAGS.log_rlds_path,
+            type=FLAGS.replay_buffer_type,
+            branch_method=FLAGS.branch_method,
+            starting_branch_count=FLAGS.starting_branch_count,
+            workspace_width=FLAGS.workspace_width,
+            x_obs_idx=x_obs_idx,
+            y_obs_idx=y_obs_idx,
+            preload_rlds_path=FLAGS.preload_rlds_path,
             image_keys=image_keys,
         )
-        demo_buffer = MemoryEfficientReplayBufferDataStore(
-            env.observation_space,
-            env.action_space,
-            capacity=10000,
+        demo_buffer = make_replay_buffer(
+            env,
+            capacity=FLAGS.replay_buffer_capacity,
+            rlds_logger_path=FLAGS.log_rlds_path,
+            type=FLAGS.replay_buffer_type,
+            branch_method=FLAGS.branch_method,
+            starting_branch_count=FLAGS.starting_branch_count,
+            workspace_width=FLAGS.workspace_width,
+            x_obs_idx=x_obs_idx,
+            y_obs_idx=y_obs_idx,
+            preload_rlds_path=FLAGS.preload_rlds_path,
             image_keys=image_keys,
         )
         import pickle as pkl
