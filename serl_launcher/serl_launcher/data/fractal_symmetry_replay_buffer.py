@@ -390,7 +390,7 @@ class FractalSymmetryReplayBuffer(ReplayBuffer):
                 indx = self.np_random.randint(len(self), size=batch_size)
 
             for i in range(batch_size):
-                while not self._is_correct_index[indx[i]]:
+                while indx[i] >= self._size:
                     if hasattr(self.np_random, "integers"):
                         indx[i] = self.np_random.integers(len(self))
                     else:
