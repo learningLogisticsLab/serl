@@ -11,19 +11,13 @@ class PegEnvConfig(DefaultEnvConfig):
         "wrist_2": "218622271526",
     }
     TARGET_POSE = np.array(
-        [0.6146533891766095,
-        -0.08316458095294457,
-         0.07538453317121817,
-         3.1398689083753517,
-        -0.023768959457821204,
-         1.5443904262890051]
-
-    )
+        [0.6146937054168005,-0.08515364836194002,0.0714669717389327,3.1406304063156565,-0.008488180663757117,1.569884103985699]   
+     )
     RESET_POSE = TARGET_POSE + np.array([0.0, 0.0, 0.1, 0.0, 0.0, 0.0])
     REWARD_THRESHOLD: np.ndarray = np.array([0.01, 0.01, 0.01, 0.2, 0.2, 0.2])
     APPLY_GRIPPER_PENALTY = False
     ACTION_SCALE = np.array([0.02, 0.1, 1])
-    RANDOM_RESET = False #Turn to true after basic task is finished
+    RANDOM_RESET = True #Turn to true after basic task is finished
     RANDOM_XY_RANGE = 0.05
     RANDOM_RZ_RANGE = np.pi / 6
     ABS_POSE_LIMIT_LOW = np.array(

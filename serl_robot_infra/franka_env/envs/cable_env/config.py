@@ -7,8 +7,8 @@ class CableEnvConfig(DefaultEnvConfig):
 
     SERVER_URL: str = "http://127.0.0.1:5000/"
     REALSENSE_CAMERAS = {
-        "wrist_1": "130322274175",
-        "wrist_2": "127122270572",
+        "wrist_1": "218622274083",
+        "wrist_2": "218622271526",
     }
     TARGET_POSE = np.array(
         [

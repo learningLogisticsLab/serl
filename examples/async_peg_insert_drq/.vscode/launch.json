@@ -8,29 +8,28 @@
             "name": "Python: Learner",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/examples/async_peg_insert_drq/async_drq_randomized.py",
+            "program": "${workspaceFolder}/async_drq_randomized.py",
             // Command-line arguments matching run_learner.sh
             "args": [
-                "--learner",                
+                "--learner",                                    // REQUIRED: Indicates this is a learner instance                
                 "--render",
-                "--env", "FrankaPegInsert-Vision-v0" ,
-                "--exp_name", "PegInsert-Random-Reset-N_DEMOS-TESTS", 
-                "--seed", "4",
-                "--batch_size", "256", 
-                "--critic_actor_ratio", "4",     
-                //"--max_steps", "200_000 ",
-                "--replay_buffer_capacity", "200_000",
-                "--random_steps", "1_000",
-                "--training_starts", "200",
-                "--encoder_type", "resnet-pretrained",
-                "--demo_path", "${workspaceFolder}/examples/async_peg_insert_drq/peg_insert_20_demos_2025-11-25_19-54-54.pkl",               
-                "--replay_buffer_type", "memory_efficient_replay_buffer", 
-
+                "--env", "FrankaPegInsert-Vision-v0" ,          // Environment to use
+                "--exp_name", "PegInsert-fractal_27_width_0.1_30_demos", // Experiment name for wandb logging
+                "--seed", "3",                                  // Random seed for reproducibility
+                "--save_model",                                 // Save model checkpoints
+                "--batch_size", "256",                          // Training batch size
+                "--critic_actor_ratio", "4",                    // Critic-to-actor update ratio                
+                "--max_steps", "100_000 ",                      // Maximum training steps
+                "--replay_buffer_capacity", "3_600_000",        // Replay buffer capacity
+                "--random_steps", "1_000",                      // Number of random steps at beginning
+                "--training_starts", "300",                     // Start training after buffer has this many samples
+                "--encoder_type", "resnet-pretrained",          // Use pixel-based observations
+                "--demo_path", "peg_insert_30_demos_2025-10-26_20-15-48.pkl",
                 // Fractal
-                // "--replay_buffer_type", "fractal_symmetry_replay_buffer", 
-                // "--branch_method", "constant",
-                // "--starting_branch_count", "27",             
-                // "--workspace_width", "0.1",   
+                "--replay_buffer_type", "fractal_symmetry_replay_buffer", // Use fractal symmetry replay buffer
+                "--branch_method", "constant",
+                "--starting_branch_count", "27",            // Start with 27 branches                  
+                "--workspace_width", "0.1",   
             ],
             "console": "integratedTerminal",                // Use integrated terminal to see output
             "justMyCode": false,                            // Allow stepping into libraries
@@ -50,18 +49,18 @@
             "name": "Python: Actor",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/examples/async_peg_insert_drq/async_drq_randomized.py",
+            "program": "${workspaceFolder}/async_drq_randomized.py",
             // Command-line arguments matching run_actor.sh
             "args": [
-                "--actor",
+                "--actor",                                      // REQUIRED: Indicates this is a learner instance                
                 "--render",
-                "--env", "FrankaPegInsert-Vision-v0" ,
-                "--exp_name", "PegInsert-Random-Reset-N_DEMOS-TESTS",
-                "--seed", "4", 
-                "--random_steps", "0", 
-                "--training_starts", "200",
-                "--encoder_type", "resnet-pretrained",
-                "--demo_path", "${workspaceFolder}/examples/async_peg_insert_drq/peg_insert_20_demos_2025-11-25_19-54-54.pkl"
+                "--env", "FrankaPegInsert-Vision-v0" ,          // Environment to use
+                "--exp_name", "PegInsert-fractal_27_width_0.1_30_demos", // Experiment name for wandb logging
+                "--seed", "3",                                  // Random seed for reproducibility
+                "--random_steps", "0",                       // Number of random steps at beginning
+                "--training_starts", "200",                     // Start training after buffer has this many samples
+                "--encoder_type", "resnet-pretrained",          // Use pixel-based observations
+                "--demo_path", "peg_insert_30_demos_2025-10-26_20-15-48.pkl"
             ],
             "console": "integratedTerminal",                // Use integrated terminal to see output
             "justMyCode": false,                            // Allow stepping into libraries

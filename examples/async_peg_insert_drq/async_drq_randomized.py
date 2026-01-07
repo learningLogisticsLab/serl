@@ -72,9 +72,9 @@ flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
 # replay buffer flags
 flags.DEFINE_string("replay_buffer_type", "memory_efficient_replay_buffer", "Which replay buffer to use")
 flags.DEFINE_integer("replay_buffer_capacity", 200000, "Replay buffer capacity.")
-flags.DEFINE_string("branch_method", None, "Method for how many branches to generate")
+flags.DEFINE_string("branch_method", "constant", "Method for how many branches to generate")
 flags.DEFINE_float("workspace_width", 0.5, "Workspace width in meters")
-flags.DEFINE_integer("starting_branch_count", None, "Initial number of branches")
+flags.DEFINE_integer("starting_branch_count", 27, "Initial number of branches")
 
 flags.DEFINE_integer(
     "eval_checkpoint_step", 0, "evaluate the policy from ckpt at this step"
@@ -332,6 +332,7 @@ def main(_):
         fake_env=FLAGS.learner,
         save_video=FLAGS.eval_checkpoint_step,
     )
+    print(env.observation_space)
     env = GripperCloseEnv(env)
     if FLAGS.actor:
         env = SpacemouseIntervention(env)
@@ -358,32 +359,44 @@ def main(_):
         jax.tree.map(jnp.array, agent), sharding.replicate()
     )
 
+    ## Set indices to be transformed by fractal class for the serl_robot_infra/robot_env/envs/franka_env
+    # Note that observation_space[state] willb e sorted and set as an ordered dict by SerlObservationWrapper
+    # gripper_pose:0
+    # tcp_force.x: 1
+    # tcp_force.y: 2
+    # tcp_force.z: 3
+    # tcp_pose.x:  4 <-- rel_frame.x points to base.+y
+    # tcp_pose.y:  5 <-- rel_frame.y points to base.+x
+    # tcp_pose.z:  6 <-- rel_frame.z points to base.-z
+    x_obs_idx = np.array([4])
+    y_obs_idx = np.array([5])
+    
     if FLAGS.learner:
         sampling_rng = jax.device_put(sampling_rng, device=sharding.replicate())
         replay_buffer = make_replay_buffer(
             env,
             capacity=FLAGS.replay_buffer_capacity,
-            rlds_logger_path=FLAGS.log_rlds_path,
+            # rlds_logger_path=FLAGS.log_rlds_path,
             type=FLAGS.replay_buffer_type,
             branch_method=FLAGS.branch_method,
             starting_branch_count=FLAGS.starting_branch_count,
             workspace_width=FLAGS.workspace_width,
             x_obs_idx=x_obs_idx,
             y_obs_idx=y_obs_idx,
-            preload_rlds_path=FLAGS.preload_rlds_path,
+            # preload_rlds_path=FLAGS.preload_rlds_path,
             image_keys=image_keys,
         )
         demo_buffer = make_replay_buffer(
             env,
             capacity=FLAGS.replay_buffer_capacity,
-            rlds_logger_path=FLAGS.log_rlds_path,
+            # rlds_logger_path=FLAGS.log_rlds_path,
             type=FLAGS.replay_buffer_type,
             branch_method=FLAGS.branch_method,
             starting_branch_count=FLAGS.starting_branch_count,
             workspace_width=FLAGS.workspace_width,
             x_obs_idx=x_obs_idx,
             y_obs_idx=y_obs_idx,
-            preload_rlds_path=FLAGS.preload_rlds_path,
+            # preload_rlds_path=FLAGS.preload_rlds_path,
             image_keys=image_keys,
         )
         import pickle as pkl
