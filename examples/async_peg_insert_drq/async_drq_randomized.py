@@ -134,7 +134,7 @@ def actor(agent: DrQAgent, data_store, env, sampling_rng):
 
                     success_counter += reward
                     print(reward)
-                    print(f"{success_counter}/{episode + 1}")
+                    print(f"{success_counter}/{episode + 1} ({success_counter / (episode + 1):.2f})")
 
         print(f"success rate: {success_counter / FLAGS.eval_n_trajs}")
         print(f"average time: {np.mean(time_list)}")

@@ -1,3 +1,4 @@
+
 # All export statements end with && \ to chain them together
 export XLA_PYTHON_CLIENT_PREALLOCATE=false && \
 # XLA memory fraction with learner+action <0.8. Learner needs more.
@@ -22,23 +23,21 @@ python async_drq_randomized.py "$@" \
     --learner \
     --render \
     --env $ENV_NAME \
-    --exp_name="PegInsert-Random-Reset-N_DEMOS-TESTS_2x" \
+    --exp_name="PegInsert-With-Checkpoints-10k-steps" \
     --random_steps 0 \
     --seed 4 \
-    --training_starts 200 \
+    --training_starts 1 \
     --save_model \
     --batch_size 256 \
     --critic_actor_ratio 8 \
-    --replay_buffer_capacity 800_000 \
+    --replay_buffer_capacity 3_600_000 \
     --random_steps 1_000 \
-    --eval_period 2_000 \
     --encoder_type resnet-pretrained \
-    --demo_path peg_insert_20_demos_2025-11-27_12-12-01.pkl \
+    --demo_path peg_insert_20_demos_2026-01-16_19-44-07.pkl \
     --save_model \
-    --replay_buffer_type "memory_efficient_replay_buffer" \
-    # --branch_method "constant" \
-    # --starting_branch_count 27 \
-    # --workspace_width 0.1 \
-    # --eval_checkpoint_step=5000 \
-    # --checkpoint_period 1000 \
-    # --checkpoint_path "$CHECKPOINT_DIR" \
+    --replay_buffer_type "fractal_symmetry_replay_buffer" \
+    --branch_method "constant" \
+    --starting_branch_count 27 \
+    --workspace_width 0.3 \
+    --checkpoint_period 500 \
+    --checkpoint_path "$CHECKPOINT_DIR" \
