@@ -7,7 +7,7 @@ export TF_GPU_ALLOCATOR=cuda_malloc_async && \
 export SCRIPT_DIR=$(dirname "$(realpath "$0")") && \
 export TIMESTAMP=$(date +"%m-%d-%Y-%H-%M-%S") && \
 export CHECKPOINT_DIR="$SCRIPT_DIR/checkpoints/checkpoints-$TIMESTAMP" && \
-export CHECKPOINT_EVAL="/home/student/code/cleiver/serl/examples/async_peg_insert_drq/checkpoints" && \
+export CHECKPOINT_EVAL="/home/student/code/serl/examples/async_peg_insert_drq/checkpoints" && \
 
 
 ## Create checkpoint directory if it doesn't exist
