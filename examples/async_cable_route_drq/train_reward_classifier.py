@@ -30,18 +30,20 @@ from franka_env.envs.relative_env import RelativeFrame
 
 # Set above env export to prevent OOM errors from memory preallocation
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = ".2"
+os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = ".5"
+os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"
+
 
 FLAGS = flags.FLAGS
 flags.DEFINE_multi_string("positive_demo_paths", None, "paths to positive demos")
 flags.DEFINE_multi_string("negative_demo_paths", None, "paths to negative demos")
-flags.DEFINE_string("classifier_ckpt_path", ".", "Path to classifier checkpoint")
+flags.DEFINE_string("classifier_ckpt_path", "./classifier_checkpoints", "Path to classifier checkpoint")
 flags.DEFINE_integer("batch_size", 256, "Batch size for training")
 flags.DEFINE_integer("num_epochs", 100, "Number of epochs for training")
 
 
 def main(_):
-    env = gym.make("FrankaRobotiqCableRoute-Vision-v0", fake_env=True, save_video=False)
+    env = gym.make("FrankaCableRoute-Vision-v0", fake_env=True, save_video=False)
     env = GripperCloseEnv(env)
     env = RelativeFrame(env)
     env = Quat2EulerWrapper(env)
@@ -68,7 +70,7 @@ def train_reward_classifier(observation_space, action_space):
     pos_buffer = MemoryEfficientReplayBufferDataStore(
         observation_space,
         action_space,
-        capacity=10000,
+        capacity=20000,
         image_keys=image_keys,
     )
     pos_buffer = populate_data_store(pos_buffer, FLAGS.positive_demo_paths)
@@ -76,7 +78,7 @@ def train_reward_classifier(observation_space, action_space):
     neg_buffer = MemoryEfficientReplayBufferDataStore(
         observation_space,
         action_space,
-        capacity=10000,
+        capacity=20000,
         image_keys=image_keys,
     )
     neg_buffer = populate_data_store(neg_buffer, FLAGS.negative_demo_paths)

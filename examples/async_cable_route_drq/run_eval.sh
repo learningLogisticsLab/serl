@@ -5,16 +5,13 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION=.3 && \
 # Use malloc_async to reduce fragmentation, overlap memory allocation with compute, lower stalls and improve worklads. Requires cuda11.2+
 export TF_GPU_ALLOCATOR=cuda_malloc_async && \
 
+export CHECKPOINT_EVAL="/home/student/code/serl/examples/async_cable_route_drq/checkpoints" && \
+
 python async_drq_randomized.py "$@" \
     --actor \
     --render \
     --env FrankaCableRoute-Vision-v0 \
-    --seed 0 \
-    --random_steps 0 \
-    --encoder_type resnet-pretrained \
     --reward_classifier_ckpt_path /home/student/code/serl/examples/async_cable_route_drq/classifier_checkpoints/ \
-    --max_traj_length 100 \
-    # --eval_checkpoint_step 20000 \
-    # --eval_n_trajs 20 \
-    
-
+    --eval_checkpoint_step 7000 \
+    --eval_n_trajs 50 \
+    --checkpoint_path "$CHECKPOINT_EVAL/fractal_01" \

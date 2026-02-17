@@ -319,7 +319,7 @@ class FrankaEnv(gym.Env):
         # Change to compliance mode
         requests.post(self.url + "update_param", json=self.config.COMPLIANCE_PARAM)
 
-    def reset(self, joint_reset=False, **kwargs):
+    def reset(self, joint_reset=False, pos_reset=True, **kwargs):
         requests.post(self.url + "update_param", json=self.config.COMPLIANCE_PARAM)
         if self.save_video:
             self.save_video_recording()
@@ -328,8 +328,9 @@ class FrankaEnv(gym.Env):
         if self.cycle_count % self.joint_reset_cycle == 0:
             self.cycle_count = 0
             joint_reset = True
-
-        self.go_to_rest(joint_reset=joint_reset)
+        
+        if pos_reset:
+            self.go_to_rest(joint_reset=joint_reset)
         self._recover()
         self.curr_path_length = 0
 

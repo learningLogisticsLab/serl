@@ -39,20 +39,21 @@ if __name__ == "__main__":
         key=key,
         sample=env.observation_space.sample(),
         image_keys=image_keys,
-        checkpoint_path="/home/student/code/serl/examples/async_cable_route_drq/",
+        checkpoint_path="/home/student/code/serl/examples/async_cable_route_drq/classifier_checkpoints/",
     )
     env = BinaryRewardClassifierWrapper(env, classifier_func)
 
     obs, _ = env.reset()
 
+    batch = []
     transitions = []
     success_count = 0
-    success_needed = 70
+    success_needed = 20
     total_count = 0
 
     pbar = tqdm(total=success_needed)
     uuid = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    file_name = f"./bc_demos/cable_route_{success_needed}_demos_{uuid}.pkl"
+    file_name = f"./demos/cable_route_{success_needed}_demos_{uuid}.pkl"
     file_dir = os.path.dirname(os.path.realpath(__file__))  # same dir as this script
     file_path = os.path.join(file_dir, file_name)
 
@@ -79,11 +80,13 @@ if __name__ == "__main__":
                 dones=done,
             )
         )
-        transitions.append(transition)
+        batch.append(transition)
         obs = next_obs
 
         if done:
-            success_count += rew
+            if rew:
+                transitions += batch
+                success_count += 1
             total_count += 1
             print(
                 f"{rew}\tGot {success_count} successes of {total_count} trials. {success_needed} successes needed."

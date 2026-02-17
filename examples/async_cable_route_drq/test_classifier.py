@@ -21,7 +21,7 @@ from absl import app, flags
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string(
-    "reward_classifier_ckpt_path", None, "Path to reward classifier ckpt."
+    "reward_classifier_ckpt_path", "./classifier_checkpoints", "Path to reward classifier ckpt."
 )
 
 
@@ -33,6 +33,7 @@ def main(_):
     env = Quat2EulerWrapper(env)
     env = SERLObsWrapper(env)
     env = ChunkingWrapper(env, obs_horizon=1, act_exec_horizon=None)
+    
     image_keys = [k for k in env.observation_space.keys() if "state" not in k]
 
     rng = jax.random.PRNGKey(0)
