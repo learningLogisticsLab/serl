@@ -17,7 +17,7 @@ from serl_launcher.networks.actor_critic_nets import Critic, Policy, ensemblize
 from serl_launcher.networks.lagrange import GeqLagrangeMultiplier
 from serl_launcher.networks.mlp import MLP
 from serl_launcher.utils.train_utils import _unpack, concat_batches
-from serl_launcher.vision.data_augmentations import batched_random_crop
+from serl_launcher.vision.data_augmentations import batched_random_crop, color_transform
 
 
 class DrQAgent(SACAgent):
@@ -57,6 +57,14 @@ class DrQAgent(SACAgent):
         critic_ensemble_size: int = 2,
         critic_subsample_size: Optional[int] = None,
         image_keys: Iterable[str] = ("image",),
+        use_color_augmentation: bool = False,
+        brightness_aug: float = 0.0,
+        contrast_aug: float = 0.0,
+        saturation_aug: float = 0.0,
+        hue_aug: float = 0.0,
+        grayscale_aug_prob: float = 0.0,
+        color_jitter_aug_prob: float = 0.0,
+        color_aug_apply_prob: float = 0.0,
     ):
         """Construct a DrQAgent from already-built actor/critic/temperature modules.
 
@@ -84,6 +92,18 @@ class DrQAgent(SACAgent):
             critic_ensemble_size: Number of critic heads in the ensemble.
             critic_subsample_size: Optional REDQ-style subset size for target min.
             image_keys: Observation keys treated as pixel tensors.
+            use_color_augmentation: Whether to apply photometric augmentation in
+                addition to random crop.
+            brightness_aug: Max random brightness delta.
+            contrast_aug: Max random contrast factor deviation.
+            saturation_aug: Max random saturation factor deviation.
+            hue_aug: Max random hue delta.
+            grayscale_aug_prob: Probability of converting an augmented image to
+                grayscale.
+            color_jitter_aug_prob: Probability of applying color jitter once the
+                augmentation path is chosen.
+            color_aug_apply_prob: Overall probability of applying color
+                augmentation to a given image.
 
         Returns:
             Initialized ``DrQAgent`` with online and target parameters.
@@ -135,6 +155,14 @@ class DrQAgent(SACAgent):
                 target_entropy=target_entropy,
                 backup_entropy=backup_entropy,
                 image_keys=image_keys,
+                use_color_augmentation=use_color_augmentation,
+                brightness_aug=brightness_aug,
+                contrast_aug=contrast_aug,
+                saturation_aug=saturation_aug,
+                hue_aug=hue_aug,
+                grayscale_aug_prob=grayscale_aug_prob,
+                color_jitter_aug_prob=color_jitter_aug_prob,
+                color_aug_apply_prob=color_aug_apply_prob,
             ),
         )
 
@@ -162,6 +190,14 @@ class DrQAgent(SACAgent):
         critic_subsample_size: Optional[int] = None,
         temperature_init: float = 1.0,
         image_keys: Iterable[str] = ("image",),
+        use_color_augmentation: bool = False,
+        brightness_aug: float = 0.0,
+        contrast_aug: float = 0.0,
+        saturation_aug: float = 0.0,
+        hue_aug: float = 0.0,
+        grayscale_aug_prob: float = 0.0,
+        color_jitter_aug_prob: float = 0.0,
+        color_aug_apply_prob: float = 0.0,
         **kwargs,
     ):
         """Build and initialize a pixel-based DrQ agent from high-level choices.
@@ -193,6 +229,16 @@ class DrQAgent(SACAgent):
             critic_subsample_size: Optional number of heads sampled for targets.
             temperature_init: Initial value for entropy temperature.
             image_keys: Keys in observation dict that contain image stacks.
+            use_color_augmentation: Whether to add color-based augmentation.
+            brightness_aug: Max random brightness delta.
+            contrast_aug: Max random contrast factor deviation.
+            saturation_aug: Max random saturation factor deviation.
+            hue_aug: Max random hue delta.
+            grayscale_aug_prob: Probability of random grayscale conversion.
+            color_jitter_aug_prob: Probability of color jittering after the
+                augmentation path is selected.
+            color_aug_apply_prob: Overall probability of applying photometric
+                augmentation to a given image.
             **kwargs: Forwarded to ``create`` (e.g., discount, optimizers).
 
         Returns:
@@ -315,6 +361,14 @@ class DrQAgent(SACAgent):
             critic_ensemble_size=critic_ensemble_size,
             critic_subsample_size=critic_subsample_size,
             image_keys=image_keys,
+            use_color_augmentation=use_color_augmentation,
+            brightness_aug=brightness_aug,
+            contrast_aug=contrast_aug,
+            saturation_aug=saturation_aug,
+            hue_aug=hue_aug,
+            grayscale_aug_prob=grayscale_aug_prob,
+            color_jitter_aug_prob=color_jitter_aug_prob,
+            color_aug_apply_prob=color_aug_apply_prob,
             **kwargs,
         )
 
@@ -343,6 +397,8 @@ class DrQAgent(SACAgent):
         """
         # Iterate over every configured camera/image input.
         for pixel_key in self.config["image_keys"]:
+            rng, crop_rng, color_rng = jax.random.split(rng, 3)
+
             # Replace this key with an augmented tensor while leaving all other
             # observation entries unchanged.
             #
@@ -352,11 +408,46 @@ class DrQAgent(SACAgent):
             # num_batch_dims=2:
             #   Data is usually [batch, stack, H, W, C], so we treat the first
             #   two axes as batch-like dimensions when vectorizing crops.
+            images = batched_random_crop(
+                observations[pixel_key], crop_rng, padding=4, num_batch_dims=2
+            )
+
+            # Keep the existing DrQ crop path as the default. Optional color
+            # augmentation is applied per image/frame after flattening [B, T]
+            # into a single leading dimension. This is equivalent to treating
+            # both batch and time axes as batch-like dimensions.
+            if self.config["use_color_augmentation"]:
+                original_shape = images.shape
+                flat_images = jnp.reshape(images, (-1,) + images.shape[-3:])
+                flat_images = flat_images.astype(jnp.float32) / 255.0
+                color_rngs = jax.random.split(color_rng, flat_images.shape[0])
+
+                flat_images = jax.vmap(
+                    lambda image, aug_rng: color_transform(
+                        image,
+                        aug_rng,
+                        brightness=self.config["brightness_aug"],
+                        contrast=self.config["contrast_aug"],
+                        saturation=self.config["saturation_aug"],
+                        hue=self.config["hue_aug"],
+                        to_grayscale_prob=self.config["grayscale_aug_prob"],
+                        color_jitter_prob=self.config["color_jitter_aug_prob"],
+                        apply_prob=self.config["color_aug_apply_prob"],
+                        shuffle=True,
+                    )
+                )(flat_images, color_rngs)
+
+                images = jnp.reshape(flat_images, original_shape)
+                if jnp.issubdtype(observations[pixel_key].dtype, jnp.integer):
+                    images = jnp.clip(images * 255.0, 0.0, 255.0).astype(
+                        observations[pixel_key].dtype
+                    )
+                else:
+                    images = images.astype(observations[pixel_key].dtype)
+
             observations = observations.copy(
                 add_or_replace={
-                    pixel_key: batched_random_crop(
-                        observations[pixel_key], rng, padding=4, num_batch_dims=2
-                    )
+                    pixel_key: images
                 }
             )
         return observations

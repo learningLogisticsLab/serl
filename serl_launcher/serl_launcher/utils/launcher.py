@@ -84,6 +84,14 @@ def make_drq_agent(
     image_keys=("image",),
     encoder_type="small",
     discount=0.96,
+    use_color_augmentation=False,
+    brightness_aug=0.0,
+    contrast_aug=0.0,
+    saturation_aug=0.0,
+    hue_aug=0.0,
+    grayscale_aug_prob=0.0,
+    color_jitter_aug_prob=0.0,
+    color_aug_apply_prob=0.0,
 ):
     agent = DrQAgent.create_drq(
         jax.random.PRNGKey(seed),
@@ -113,6 +121,14 @@ def make_drq_agent(
         backup_entropy=False,
         critic_ensemble_size=10,
         critic_subsample_size=2,
+        use_color_augmentation=use_color_augmentation,
+        brightness_aug=brightness_aug,
+        contrast_aug=contrast_aug,
+        saturation_aug=saturation_aug,
+        hue_aug=hue_aug,
+        grayscale_aug_prob=grayscale_aug_prob,
+        color_jitter_aug_prob=color_jitter_aug_prob,
+        color_aug_apply_prob=color_aug_apply_prob,
     )
     return agent
 

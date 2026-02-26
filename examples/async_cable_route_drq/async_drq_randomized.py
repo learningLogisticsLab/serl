@@ -73,6 +73,46 @@ flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
 flags.DEFINE_string(
     "reward_classifier_ckpt_path", None, "Path to reward classifier ckpt."
 )
+flags.DEFINE_boolean(
+    "use_color_augmentation",
+    False,
+    "Apply color jitter augmentation in addition to the default random crop.",
+)
+flags.DEFINE_float(
+    "brightness_aug",
+    0.2,
+    "Max random brightness delta used by color augmentation.",
+)
+flags.DEFINE_float(
+    "contrast_aug",
+    0.2,
+    "Max random contrast deviation used by color augmentation.",
+)
+flags.DEFINE_float(
+    "saturation_aug",
+    0.2,
+    "Max random saturation deviation used by color augmentation.",
+)
+flags.DEFINE_float(
+    "hue_aug",
+    0.05,
+    "Max random hue delta used by color augmentation.",
+)
+flags.DEFINE_float(
+    "grayscale_aug_prob",
+    0.1,
+    "Probability of converting an augmented image to grayscale.",
+)
+flags.DEFINE_float(
+    "color_jitter_aug_prob",
+    0.8,
+    "Probability of applying color jitter once augmentation is chosen.",
+)
+flags.DEFINE_float(
+    "color_aug_apply_prob",
+    0.8,
+    "Overall probability of applying color augmentation to an image.",
+)
 
 # replay buffer flags
 flags.DEFINE_string("replay_buffer_type", "memory_efficient_replay_buffer", "Which replay buffer to use")
@@ -446,6 +486,14 @@ def main(_):
         sample_action=env.action_space.sample(),
         image_keys=image_keys,
         encoder_type=FLAGS.encoder_type,
+        use_color_augmentation=FLAGS.use_color_augmentation,
+        brightness_aug=FLAGS.brightness_aug,
+        contrast_aug=FLAGS.contrast_aug,
+        saturation_aug=FLAGS.saturation_aug,
+        hue_aug=FLAGS.hue_aug,
+        grayscale_aug_prob=FLAGS.grayscale_aug_prob,
+        color_jitter_aug_prob=FLAGS.color_jitter_aug_prob,
+        color_aug_apply_prob=FLAGS.color_aug_apply_prob,
     )
 
     # replicate agent across devices
