@@ -143,11 +143,11 @@ We welcome contributions to this repository! Fork and submit a PR if you have an
 If you use this code for your research, please cite our paper:
 
 ```bibtex
-@misc{luo2024serl,
-      title={SERL: A Software Suite for Sample-Efficient Robotic Reinforcement Learning},
-      author={Jianlan Luo and Zheyuan Hu and Charles Xu and You Liang Tan and Jacob Berg and Archit Sharma and Stefan Schaal and Chelsea Finn and Abhishek Gupta and Sergey Levine},
-      year={2024},
-      eprint={2401.16013},
+@misc{vanderstelt2026SymmGrid,
+      title={Towards Accelerating Deep Reinforcement Learning via Branched Symmetries},
+      author={Ryan Vanderstelt, Cleiver Ruiz Martinez, Caeden Rosen, Blake Hull, and Juan Rojas},
+      year={2026},
+      eprint={____},
       archivePrefix={arXiv},
       primaryClass={cs.RO}
 }
