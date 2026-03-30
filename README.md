@@ -29,6 +29,10 @@ The following sections describe how to use SymmGrid and SERL. We will illustrate
   - [Citation](#citation)
 
 ## Major updates
+
+#### March 29, 2026
+SymmGrid SERL has implemented branched and fractal symmetries with an optimized fractal_symmetry_replay_buffer to optimize SERL in simulation, real-robot peg-insert, and cable-routing. We are working to do object relocation and further optimize the code. We are still using ROS1 at this stage. 
+
 #### June 24, 2024
 For people who use SERL for tasks involving controlling the gripper (e.g.,pick up objects), we strong recommend adding a small penalty to the gripper action change, as it will greatly improves the training speed.
 For detail, please refer to: [PR #65](https://github.com/rail-berkeley/serl/pull/65).
@@ -69,8 +73,6 @@ We fixed a major issue in the intervention action frame. See release [v0.1.1](ht
     pip install -e .
     pip install -r requirements.txt
     ```
-
-
 
 4. **Install the franka_sim**
     ```bash
