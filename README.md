@@ -1,25 +1,26 @@
-# SERL: A Software Suite for Sample-Efficient Robotic Reinforcement Learning
+# SymmGrid SERL: Branched Symmetries for Sample-Efficient Robotic Reinforcement Learning
 
-![](https://github.com/rail-berkeley/serl/workflows/pre-commit/badge.svg)
+<!-- ![](https://github.com/rail-berkeley/serl/workflows/pre-commit/badge.svg) -->
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Static Badge](https://img.shields.io/badge/Project-Page-a)](https://serl-robot.github.io/)
-[![Discord](https://img.shields.io/discord/1302866684612444190?label=Join%20Us%20on%20Discord&logo=discord&color=7289da)](https://discord.gg/G4xPJEhwuC)
+<!-- [![Static Badge](https://img.shields.io/badge/Project-Page-a)](https://serl-robot.github.io/) -->
+<!-- [![Discord](https://img.shields.io/discord/1302866684612444190?label=Join%20Us%20on%20Discord&logo=discord&color=7289da)](https://discord.gg/G4xPJEhwuC) -->
 
 
-![](./docs/images/tasks-banner.gif)
+<!-- ![](./docs/images/tasks-banner.gif) -->
 
-**Webpage: [https://serl-robot.github.io/](https://serl-robot.github.io/)**
-
-
-**Also check out our new project HIL-SERL: [https://hil-serl.github.io/](https://hil-serl.github.io/)**
+<!-- **Webpage: [https://serl-robot.github.io/](https://serl-robot.github.io/)** -->
 
 
-SERL provides a set of libraries, env wrappers, and examples to train RL policies for robotic manipulation tasks. The following sections describe how to use SERL. We will illustrate the usage with examples.
+SymmGrid SERL builds on top of SERL using branched symmetries to accelerate learning in the Sample Efficient Reinforcement Learning frameowork. The latter, as originally stated, provides a set of libraries, env wrappers, and examples to train RL policies for robotic manipulation tasks. In this iteration, we include signficant additions and fixes. 
 
-🎬: [SERL video](https://www.youtube.com/watch?v=Um4CjBmHdcw), [additional video](https://www.youtube.com/watch?v=17NrtKHdPDw) on sample efficient RL.
+Note: our work is still in progress and we have only tested in simulation, real robot peg-insertions, and cable-routing. 
+
+The following sections describe how to use SymmGrid and SERL. We will illustrate the usage with examples.
+
+🎬: [Original SERL video](https://www.youtube.com/watch?v=Um4CjBmHdcw), [SERL additional video](https://www.youtube.com/watch?v=17NrtKHdPDw) on sample efficient RL.
 
 **Table of Contents**
-- [SERL: A Software Suite for Sample-Efficient Robotic Reinforcement Learning](#serl-a-software-suite-for-sample-efficient-robotic-reinforcement-learning)
+- [SymmGrid SERL: A Software Suite for Sample-Efficient Robotic Reinforcement Learning](#serl-a-software-suite-for-sample-efficient-robotic-reinforcement-learning)
   - [Installation](#installation)
   - [Overview and Code Structure](#overview-and-code-structure)
   - [Quick Start with SERL in Sim](#quick-start-with-serl-in-sim)
